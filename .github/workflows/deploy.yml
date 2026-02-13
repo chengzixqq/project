@@ -1,4 +1,4 @@
-name: Deploy to Server
+name: Deploy to Server (Push Sync)
 
 on:
   push:
@@ -7,59 +7,57 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: deploy-to-server
+  group: deploy-project-main
   cancel-in-progress: true
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 15
 
     steps:
-      - name: Deploy via SSH (precheck + retry)
-        uses: appleboy/ssh-action@v1.0.3
+      - name: Checkout
+        uses: actions/checkout@v4
         with:
-          host: ${{ secrets.DEPLOY_HOST }}
-          username: ${{ secrets.DEPLOY_USER }}
-          key: ${{ secrets.DEPLOY_SSH_KEY }}
-          port: 22
-          timeout: 60s
-          command_timeout: 30m
-          script: |
-            set -euo pipefail
+          fetch-depth: 1
 
-            echo "[INFO] server time: $(date -Is)"
-            echo "[INFO] host: $(hostname)"
-            echo "[INFO] user: $(whoami)"
+      - name: Setup SSH
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.ssh
+          echo "${{ secrets.DEPLOY_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H "${{ secrets.DEPLOY_HOST }}" >> ~/.ssh/known_hosts
 
-            # 防御性：避免继承到奇怪的代理环境
-            unset http_proxy https_proxy all_proxy no_proxy
+      - name: Sync files to server (rsync)
+        shell: bash
+        run: |
+          set -euo pipefail
 
-            max_attempts=6
-            for i in $(seq 1 $max_attempts); do
-              echo "=============================="
-              echo "[INFO] Attempt $i/$max_attempts"
+          # 目标：你截图里的目录
+          TARGET_DIR="/home/admin/www/project-main"
 
-              # 先做 GitHub 443 预检，避免 git 卡很久才失败
-              if ! curl -I https://github.com -m 8 >/dev/null 2>&1; then
-                echo "[WARN] Precheck failed: cannot reach github.com:443"
-                sleep $((i * 10))
-                continue
-              fi
+          # rsync 说明：
+          # -a 归档模式（保留时间戳等）
+          # -z 压缩传输
+          # --delete 让服务器目录与仓库完全一致（仓库删了服务器也删）
+          # --exclude 排除不应部署的东西
+          rsync -az --delete \
+            --exclude ".git/" \
+            --exclude ".github/" \
+            --exclude ".idea/" \
+            --exclude "node_modules/" \
+            -e "ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=yes" \
+            ./ "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:${TARGET_DIR}/"
 
-              set +e
-              /home/admin/deploy_project.sh
-              rc=$?
-              set -e
-
-              if [ $rc -eq 0 ]; then
-                echo "[INFO] Deploy succeeded."
-                exit 0
-              fi
-
-              echo "[WARN] Deploy failed with exit code $rc"
-              sleep $((i * 10))
-            done
-
-            echo "[ERR] Deploy failed after $max_attempts attempts."
-            exit 1
+      # 如果你用 nginx/其他服务托管静态文件，一般不需要重启。
+      # 若你确实需要 reload（例如用到缓存规则变更），取消注释下面这段。
+      # - name: Optional - reload nginx
+      #   uses: appleboy/ssh-action@v1.0.3
+      #   with:
+      #     host: ${{ secrets.DEPLOY_HOST }}
+      #     username: ${{ secrets.DEPLOY_USER }}
+      #     key: ${{ secrets.DEPLOY_SSH_KEY }}
+      #     script: |
+      #       sudo nginx -s reload
