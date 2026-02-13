@@ -74,6 +74,7 @@ function buildSummaryFromEvents(events, totalDuration) {
   let firstDeathStart = null;
   let skillCount = 0;
   let skipCount = 0;
+  let wood3ProcCount = 0;
 
   for (const e of events) {
     if (e.type === 'vacuum') {
@@ -88,6 +89,7 @@ function buildSummaryFromEvents(events, totalDuration) {
     }
     if (e.type === 'skill') {
       skillCount += 1;
+      if (e.wood3Triggered) wood3ProcCount += 1;
       continue;
     }
     if (e.type === 'skip') skipCount += 1;
@@ -101,6 +103,7 @@ function buildSummaryFromEvents(events, totalDuration) {
     maxVac,
     deathCount,
     firstDeathStart,
+    wood3ProcCount,
   };
 }
 
@@ -112,12 +115,17 @@ export function renderResults(eventsAll, stats = null) {
   const { events } = applyNoCastFilter(eventsAll);
   const summarySource = filterOn ? events : eventsAll;
   const summary = (!filterOn && stats) ? stats : buildSummaryFromEvents(summarySource, state.modeDuration);
+  const schedLine = state.schedMode === 'dynamic' ? '动态' : '严格';
+  const deathThreshold = Number(state.deathThreshold) || 0;
+  const deathPart = deathThreshold > 0
+    ? ` ｜ 死亡阈值：<b>${fmt(deathThreshold)}s</b> ｜ 死亡真空段数：<b>${summary.deathCount}</b>${summary.deathCount > 0 ? `（首次：<b>${fmt(summary.firstDeathStart ?? 0)}s</b>）` : ''}`
+    : ' ｜ 死亡阈值：<b>未启用</b>';
+  const woodPart = state.woodChoice === 0
+    ? ' ｜ 木周天：<b>未选择</b>'
+    : ` ｜ 木周天：<b>${state.woodChoice}木</b>${state.woodChoice === 3 ? `（特效触发：<b>${summary.wood3ProcCount || 0}</b>次）` : ''}`;
+  const orderLine = state.orderedKeys.map((k) => state.skillIndex.get(k)?.name).filter(Boolean).join(' → ');
 
-  const deathPart = summary.deathCount > 0
-    ? ` ｜ 死亡段：<b>${summary.deathCount}</b>（首段起点 <b>${fmt(summary.firstDeathStart ?? 0)}s</b>）`
-    : '';
-
-  $('summaryBox').innerHTML = `模式：<b>${DB.modes.find((m) => m.id === state.modeId)?.name || state.modeId}</b> ｜ 时长：<b>${state.modeDuration}s</b> ｜ 施放次数：<b>${summary.skillCount}</b> ｜ 跳过：<b>${summary.skipCount}</b> ｜ 真空总时长：<b>${fmt(summary.vacuum)}s</b>（<b>${fmt(summary.vacuumPct)}%</b>） ｜ 最大真空：<b>${fmt(summary.maxVac)}s</b>${deathPart}`;
+  $('summaryBox').innerHTML = `模式：<b>${DB.modes.find((m) => m.id === state.modeId)?.name || state.modeId}</b> ｜ 时长：<b>${state.modeDuration}s</b> ｜ 排轴策略：<b>${schedLine}</b> ｜ 施放次数：<b>${summary.skillCount}</b> ｜ 跳过次数：<b>${summary.skipCount}</b> ｜ 真空总时长：<b>${fmt(summary.vacuum)}s</b>（<b>${fmt(summary.vacuumPct)}%</b>） ｜ 最大单段真空：<b>${fmt(summary.maxVac)}s</b>${deathPart}${woodPart}<br/>顺序（循环优先级）：<span class="mono">${orderLine || '-'}</span>`;
 
   events.forEach((e) => {
     const tr = document.createElement('tr');
@@ -127,7 +135,7 @@ export function renderResults(eventsAll, stats = null) {
       if (e.death === true) tr.classList.add('death', 'row-death');
     }
 
-    let actionText = `<b>${e.name}</b>`;
+    let actionText = `<b>${e.name}</b>${e.wood3Triggered ? ' <span class="badge blue">木周天触发</span>' : ''} <span class="muted">（起始秒：${Math.floor(e.start)}）</span>`;
     if (e.type === 'skip') {
       actionText = `<b>跳过：${e.name}</b>`;
     } else if (e.type === 'vacuum') {
