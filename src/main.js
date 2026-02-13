@@ -14,6 +14,30 @@ function getSchedMode() {
   return checked ? checked.value : 'strict';
 }
 
+
+function goToStep(step, options = {}) {
+  const target = Math.max(1, Math.min(5, Number(step) || 1));
+  const forceForward = options.forceForward === true;
+  if (!forceForward && target > (state.maxVisitedStep || 1)) return;
+
+  if (target === 3) {
+    state.prof = $('profSelect').value;
+    state.woodChoice = getWoodChoice();
+    renderSkillPicker();
+  }
+
+  if (target === 4) {
+    prepareForOrderStep();
+    renderOrderList();
+  }
+
+  if (target === 5) {
+    if (!state.events?.length) return;
+    renderResults(state.events, state.scheduleStats);
+  }
+
+  setActiveStep(target);
+}
 function calculateSchedule() {
   enforceRequiredSkills();
   collectOrderedFromSelected();
@@ -39,7 +63,7 @@ function calculateSchedule() {
   if (!state.events.length) return;
 
   renderResults(state.events, state.scheduleStats);
-  setActiveStep(5);
+  goToStep(5, { forceForward: true });
 }
 
 function init() {
@@ -49,6 +73,10 @@ function init() {
 
   renderModeOptions();
   renderProfOptions();
+
+  for (let i = 1; i <= 5; i++) {
+    $(`pill${i}`).addEventListener('click', () => goToStep(i));
+  }
 
   document.querySelectorAll('input[name="wood"]').forEach((r) => r.addEventListener('change', () => {
     state.woodChoice = getWoodChoice();
@@ -64,19 +92,16 @@ function init() {
     state.modeId = $('modeSelect').value;
     state.modeDuration = Number($('modeDuration').value) || 120;
     state.deathThreshold = Math.max(0, Number($('deathThreshold').value) || 0);
-    setActiveStep(2);
+    goToStep(2, { forceForward: true });
   });
 
-  $('back1').addEventListener('click', () => setActiveStep(1));
+  $('back1').addEventListener('click', () => goToStep(1));
 
   $('toStep3').addEventListener('click', () => {
-    state.prof = $('profSelect').value;
-    state.woodChoice = getWoodChoice();
-    renderSkillPicker();
-    setActiveStep(3);
+    goToStep(3, { forceForward: true });
   });
 
-  $('back2').addEventListener('click', () => setActiveStep(2));
+  $('back2').addEventListener('click', () => goToStep(2));
   $('skillSearch').addEventListener('input', () => renderSkillPicker());
 
   $('selectAll').addEventListener('click', () => {
@@ -98,12 +123,10 @@ function init() {
   });
 
   $('toStep4').addEventListener('click', () => {
-    prepareForOrderStep();
-    renderOrderList();
-    setActiveStep(4);
+    goToStep(4, { forceForward: true });
   });
 
-  $('back3').addEventListener('click', () => setActiveStep(3));
+  $('back3').addEventListener('click', () => goToStep(3));
   $('calc').addEventListener('click', calculateSchedule);
 
   $('copyText').addEventListener('click', async () => {
@@ -124,7 +147,7 @@ function init() {
 
   $('exportCsv').addEventListener('click', () => exportCSV(applyNoCastFilter(state.events || []).events));
   $('restart').addEventListener('click', () => {
-    setActiveStep(1);
+    goToStep(1);
     resetAll();
     $('skillSearch').value = '';
     renderSkillPicker();
@@ -135,6 +158,7 @@ function init() {
   state.woodChoice = getWoodChoice();
   state.schedMode = getSchedMode();
   renderSkillPicker();
+  setActiveStep(1);
 }
 
 init();

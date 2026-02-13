@@ -1,6 +1,8 @@
 import { DB } from '../data/db.js';
 
 export const state = {
+  currentStep: 1,
+  maxVisitedStep: 1,
   modeId: DB.modes[0].id,
   modeDuration: DB.modes[0].duration,
   deathThreshold: 3.0,
@@ -58,6 +60,8 @@ export function collectOrderedFromSelected() {
 }
 
 export function resetAll() {
+  state.currentStep = 1;
+  state.maxVisitedStep = 1;
   state.selectedKeys = new Set();
   state.orderedKeys = [];
   state.events = [];
