@@ -19,15 +19,10 @@ export const state = {
 
 export function buildSkillIndex(profName) {
   const index = new Map();
-  const profSkills = (DB.skills.profession[profName] || []).map((s) => ({ ...s, source: profName }));
-  const uni = [];
-  for (const cat of Object.keys(DB.skills.universal)) {
-    for (const s of DB.skills.universal[cat] || []) uni.push({ ...s, source: cat });
-  }
-  for (const s of [...profSkills, ...uni]) {
-    if (!s.id) continue;
-    index.set(s.id, { ...s, key: s.id });
-  }
+  const allSkills = Array.isArray(DB.skills) ? DB.skills : [];
+  const profSkills = allSkills.filter((s) => s.bucket === '职业技能' && s.source === profName);
+  const uniSkills = allSkills.filter((s) => s.bucket !== '职业技能');
+  for (const s of [...profSkills, ...uniSkills]) index.set(keyOf(s.source, s.name), { ...s, key: keyOf(s.source, s.name) });
   return index;
 }
 
