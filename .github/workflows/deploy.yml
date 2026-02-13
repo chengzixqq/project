@@ -4,16 +4,62 @@ on:
   push:
     branches:
       - main
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-to-server
+  cancel-in-progress: true
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
+
     steps:
-      - name: Deploy via SSH
+      - name: Deploy via SSH (precheck + retry)
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.DEPLOY_HOST }}
           username: ${{ secrets.DEPLOY_USER }}
           key: ${{ secrets.DEPLOY_SSH_KEY }}
+          port: 22
+          timeout: 60s
+          command_timeout: 30m
           script: |
-            /home/admin/deploy_project.sh
+            set -euo pipefail
+
+            echo "[INFO] server time: $(date -Is)"
+            echo "[INFO] host: $(hostname)"
+            echo "[INFO] user: $(whoami)"
+
+            # 防御性：避免继承到奇怪的代理环境
+            unset http_proxy https_proxy all_proxy no_proxy
+
+            max_attempts=6
+            for i in $(seq 1 $max_attempts); do
+              echo "=============================="
+              echo "[INFO] Attempt $i/$max_attempts"
+
+              # 先做 GitHub 443 预检，避免 git 卡很久才失败
+              if ! curl -I https://github.com -m 8 >/dev/null 2>&1; then
+                echo "[WARN] Precheck failed: cannot reach github.com:443"
+                sleep $((i * 10))
+                continue
+              fi
+
+              set +e
+              /home/admin/deploy_project.sh
+              rc=$?
+              set -e
+
+              if [ $rc -eq 0 ]; then
+                echo "[INFO] Deploy succeeded."
+                exit 0
+              fi
+
+              echo "[WARN] Deploy failed with exit code $rc"
+              sleep $((i * 10))
+            done
+
+            echo "[ERR] Deploy failed after $max_attempts attempts."
+            exit 1
