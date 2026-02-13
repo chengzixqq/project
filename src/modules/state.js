@@ -10,7 +10,8 @@ export const state = {
   skillIndex: new Map(),
   selectedKeys: new Set(),
   orderedKeys: [],
-  events: []
+  events: [],
+  scheduleStats: null,
 };
 
 export function keyOf(source, name) { return `${source}::${name}`; }
@@ -60,6 +61,7 @@ export function resetAll() {
   state.selectedKeys = new Set();
   state.orderedKeys = [];
   state.events = [];
+  state.scheduleStats = null;
 }
 
 export { DB };

@@ -66,12 +66,21 @@ export function renderOrderList() {
 const isFilterNoCastOn = () => !!$('filterNoCast')?.checked;
 export function applyNoCastFilter(events) { if (!isFilterNoCastOn()) return { events, hidden: 0 }; const filtered = events.filter((e) => !(e.type === 'skill' && !(e.cast > 0))); return { events: filtered, hidden: events.length - filtered.length }; }
 
-export function renderResults(eventsAll) {
+export function renderResults(eventsAll, stats = null) {
   const tbody = $('resultTable').querySelector('tbody'); tbody.innerHTML = '';
   const { events } = applyNoCastFilter(eventsAll);
-  let vacuum = 0; let skillCount = 0;
-  eventsAll.forEach((e) => { if (e.type === 'vacuum') vacuum += e.duration; if (e.type === 'skill') skillCount++; });
-  $('summaryBox').innerHTML = `模式：<b>${DB.modes.find((m) => m.id === state.modeId)?.name || state.modeId}</b> ｜ 时长：<b>${state.modeDuration}s</b> ｜ 施放次数：<b>${skillCount}</b> ｜ 真空总时长：<b>${fmt(vacuum)}s</b>`;
+
+  const computed = stats || {
+    skillCount: eventsAll.filter((e) => e.type === 'skill').length,
+    skipCount: eventsAll.filter((e) => e.type === 'skip').length,
+    vacuum: eventsAll.filter((e) => e.type === 'vacuum').reduce((sum, e) => sum + (e.duration || 0), 0),
+    vacuumPct: state.modeDuration > 0 ? (eventsAll.filter((e) => e.type === 'vacuum').reduce((sum, e) => sum + (e.duration || 0), 0) / state.modeDuration) * 100 : 0,
+    maxVac: Math.max(0, ...eventsAll.filter((e) => e.type === 'vacuum').map((e) => e.duration || 0)),
+    deathCount: eventsAll.filter((e) => e.type === 'vacuum' && e.death).length,
+    firstDeathStart: (eventsAll.find((e) => e.type === 'vacuum' && e.death)?.start ?? null),
+  };
+
+  $('summaryBox').innerHTML = `模式：<b>${DB.modes.find((m) => m.id === state.modeId)?.name || state.modeId}</b> ｜ 时长：<b>${state.modeDuration}s</b> ｜ 施放次数：<b>${computed.skillCount}</b> ｜ 跳过：<b>${computed.skipCount || 0}</b> ｜ 真空总时长：<b>${fmt(computed.vacuum || 0)}s</b>（<b>${fmt(computed.vacuumPct || 0)}%</b>） ｜ 最大真空：<b>${fmt(computed.maxVac || 0)}s</b>${computed.deathCount ? ` ｜ 死亡段：<b>${computed.deathCount}</b>（首段起点 <b>${fmt(computed.firstDeathStart || 0)}s</b>）` : ''}`;
   events.forEach((e) => {
     const tr = document.createElement('tr');
     tr.innerHTML = `<td class="mono">${fmt(e.start)}s</td><td class="mono">${fmt(e.end)}s</td><td>${e.type === 'skill' ? `<b>${e.name}</b>` : e.type === 'skip' ? `<b>跳过：${e.name}</b>` : '<b>真空</b>'}</td><td>${(e.type === 'skill' || e.type === 'skip') ? e.source : '-'}</td><td class="mono">${e.type === 'skill' ? `${fmt(e.cast)}s` : `${fmt(e.duration || 0)}s`}</td><td class="mono">${e.type === 'skill' ? `${fmt(e.cd)}s` : '-'}</td>`;
