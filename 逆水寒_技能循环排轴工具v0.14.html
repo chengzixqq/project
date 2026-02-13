@@ -1034,7 +1034,7 @@ function renderResults(eventsAll) {
     const filterLine = isFilterNoCastOn() ? ` ｜ 已隐藏无霸体技能：<b>${fmt(hiddenNoCast)}</b> 条` : ``;
 
   $("summaryBox").innerHTML =
-    `模式：<b>${modeName}</b> ｜ 时长：<b>${T}s</b> ｜ 排轴策略：<b>${schedLine}</b> ｜ 施放次数：<b>${skillCount}</b> ｜ 跳过次数：<b>${skipCount}</b> ｜ 真空总时长：<b>${fmt(vacuum)}s</b>（<b>${fmt(pct)}%</b>） ｜ 最大单段真空：<b>${fmt(maxVac)}s</b>${deathLine}${woodLine}<br/>` +
+    `模式：<b>${modeName}</b> ｜ 时长：<b>${T}s</b> ｜ 排轴策略：<b>${schedLine}</b> ｜ 施放次数：<b>${skillCount}</b> ｜ 跳过次数：<b>${skipCount}</b> ｜ 真空总时长：<b>${fmt(vacuum)}s</b>（<b>${fmt(pct)}%</b>）${filterLine} ｜ 最大单段真空：<b>${fmt(maxVac)}s</b>${deathLine}${woodLine}<br/>` +
     `顺序（循环优先级）：<span class="mono">${state.orderedKeys.map(k=>state.skillIndex.get(k)?.name).filter(Boolean).join(" → ")}</span>`;
 
   for (const e of events) {
