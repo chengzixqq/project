@@ -1,4 +1,4 @@
-import { SKILL_NAME, SKILL_NAME_ALIASES } from '../../constants.js';
+import { SKILL_ID, SKILL_NAME, SKILL_NAME_ALIASES } from '../../constants.js';
 
 const EPS = 1e-12;
 
@@ -9,27 +9,26 @@ const fuyangTaixuLingyunAliases = SKILL_NAME_ALIASES[SKILL_NAME.FUYANG_TAIXU_LIN
 function initCtx() {
   return { lastFeitian: null, feitianWindowEnd: null, lianxinUsed: false };
 }
-function isFeitian(name) { return name === SKILL_NAME.FEITIAN; }
-function isLianxin(name) { return feitianLianxinAliases.includes(name); }
-function isZhuyueChengfeng(name) {
-  return zhuyueChengfengAliases.includes(name);
+function isFeitian(skill) { return skill.id ? skill.id === SKILL_ID.FEITIAN : skill.name === SKILL_NAME.FEITIAN; }
+function isLianxin(skill) { return skill.id ? skill.id === SKILL_ID.FEITIAN_LIANXIN : feitianLianxinAliases.includes(skill.name); }
+function isZhuyueChengfeng(skill) {
+  return skill.id ? skill.id === SKILL_ID.ZHUYUE_CHENGFENG : zhuyueChengfengAliases.includes(skill.name);
 }
-function isFuyangTaixu(name) { return name === SKILL_NAME.FUYANG_TAIXU; }
-function isFuyangTaixuLingyun(name) {
-  return fuyangTaixuLingyunAliases.includes(name);
+function isFuyangTaixu(skill) { return skill.id ? skill.id === SKILL_ID.FUYANG_TAIXU : skill.name === SKILL_NAME.FUYANG_TAIXU; }
+function isFuyangTaixuLingyun(skill) {
+  return skill.id ? skill.id === SKILL_ID.FUYANG_TAIXU_LINGYUN : fuyangTaixuLingyunAliases.includes(skill.name);
 }
 
 function prereqOk(skill, t, ctx, nextReady, options) {
-  const name = skill.name;
   const { profession, zhuyueKey } = options;
 
-  if (isLianxin(name) || isZhuyueChengfeng(name)) {
+  if (isLianxin(skill) || isZhuyueChengfeng(skill)) {
     if (ctx.lastFeitian === null || ctx.feitianWindowEnd === null) return false;
-    if (isZhuyueChengfeng(name) && ctx.lianxinUsed) return false;
+    if (isZhuyueChengfeng(skill) && ctx.lianxinUsed) return false;
     return t <= ctx.feitianWindowEnd + 1e-9;
   }
 
-  if (isFuyangTaixu(name) || isFuyangTaixuLingyun(name)) {
+  if (isFuyangTaixu(skill) || isFuyangTaixuLingyun(skill)) {
     if (profession !== "妙音") return true;
     if (!zhuyueKey) return false;
     const readyAt = nextReady[zhuyueKey];
@@ -41,13 +40,13 @@ function prereqOk(skill, t, ctx, nextReady, options) {
 }
 
 function onCastUpdateCtx(skill, t, ctx) {
-  if (isFeitian(skill.name)) {
+  if (isFeitian(skill)) {
     ctx.lastFeitian = t;
     ctx.feitianWindowEnd = t + 20;
     ctx.lianxinUsed = false;
     return;
   }
-  if (isLianxin(skill.name)) ctx.lianxinUsed = true;
+  if (isLianxin(skill)) ctx.lianxinUsed = true;
 }
 
 function countProfCooldown(nextReady, profKeys, t) {

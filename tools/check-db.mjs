@@ -25,6 +25,11 @@ function checkSkill(skill, sourceLabel) {
     issues.push(`[${sourceLabel}] 缺失 name`);
   }
 
+  if (!skill?.id || typeof skill.id !== 'string' || !skill.id.trim()) {
+    issues.push(`[${sourceLabel}] ${skill?.name || '<unknown>'} 缺失专属ID(id)`);
+    warnings.push(`[${sourceLabel}] ${skill?.name || '<unknown>'} 将被构建流程跳过（缺失专属ID）`);
+  }
+
   for (const key of ['cd', 'cast', 'duration', 'dmg_reduction']) {
     const value = skill[key];
     if (value != null && !isNum(value)) {
@@ -50,6 +55,7 @@ function checkBucket(skills, sourceLabel) {
   const issues = [];
   const warnings = [];
   const seen = new Set();
+  const seenIds = new Set();
 
   for (const s of skills) {
     const key = (s?.name || '').trim();
@@ -58,6 +64,14 @@ function checkBucket(skills, sourceLabel) {
         issues.push(`[${sourceLabel}] 存在重复技能名：${key}`);
       }
       seen.add(key);
+    }
+
+    const skillId = (s?.id || '').trim();
+    if (skillId) {
+      if (seenIds.has(skillId)) {
+        issues.push(`[${sourceLabel}] 存在重复专属ID(id)：${skillId}`);
+      }
+      seenIds.add(skillId);
     }
 
     const result = checkSkill(s, sourceLabel);

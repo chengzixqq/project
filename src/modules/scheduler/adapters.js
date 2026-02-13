@@ -1,3 +1,4 @@
+import { SKILL_ID } from '../../constants.js';
 export function buildSchedulerInputFromState(state, options) {
   const {
     effectiveCd,
@@ -9,13 +10,15 @@ export function buildSchedulerInputFromState(state, options) {
     .filter(Boolean)
     .map((skill) => ({
       key: skill.key,
+      id: skill.id,
       name: skill.name,
       source: skill.source,
       cast: Math.max(0, Number(skill.cast ?? 0)),
       cd: Number(effectiveCd(skill, state.prof, state.woodChoice) ?? 0),
     }));
 
-  const zhuyueSkill = orderedSkills.find((skill) => skill.name === "逐月");
+  const zhuyueSkill = orderedSkills.find((skill) => skill.id === SKILL_ID.ZHUYUE)
+    || orderedSkills.find((skill) => skill.name === "逐月");
 
   return {
     modeDuration,
