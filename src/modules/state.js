@@ -11,21 +11,18 @@ export const state = {
   schedMode: 'strict',
   skillIndex: new Map(),
   selectedKeys: new Set(),
+  autoRequiredKeys: new Set(),
   orderedKeys: [],
   events: [],
   scheduleStats: null,
 };
 
-export function keyOf(source, name) { return `${source}::${name}`; }
-
 export function buildSkillIndex(profName) {
   const index = new Map();
-  const profSkills = (DB.skills.profession[profName] || []).map((s) => ({ ...s, source: profName }));
-  const uni = [];
-  for (const cat of Object.keys(DB.skills.universal)) {
-    for (const s of DB.skills.universal[cat] || []) uni.push({ ...s, source: cat });
-  }
-  for (const s of [...profSkills, ...uni]) index.set(keyOf(s.source, s.name), { ...s, key: keyOf(s.source, s.name) });
+  const allSkills = Array.isArray(DB.skills) ? DB.skills : [];
+  const profSkills = allSkills.filter((s) => s.bucket === '职业技能' && s.source === profName);
+  const uniSkills = allSkills.filter((s) => s.bucket !== '职业技能');
+  for (const s of [...profSkills, ...uniSkills]) index.set(keyOf(s.source, s.name), { ...s, key: keyOf(s.source, s.name) });
   return index;
 }
 
@@ -63,6 +60,7 @@ export function resetAll() {
   state.currentStep = 1;
   state.maxVisitedStep = 1;
   state.selectedKeys = new Set();
+  state.autoRequiredKeys = new Set();
   state.orderedKeys = [];
   state.events = [];
   state.scheduleStats = null;

@@ -1,9 +1,7 @@
 import { getRulesForProfession } from '../../data/rules.js';
 
 export function buildSchedulerInputFromState(state, options) {
-  const {
-    effectiveCd,
-  } = options;
+  const { effectiveCd } = options;
 
   const modeDuration = Number(state.modeDuration);
   const orderedSkills = state.orderedKeys
@@ -11,9 +9,11 @@ export function buildSchedulerInputFromState(state, options) {
     .filter(Boolean)
     .map((skill) => ({
       key: skill.key,
+      id: skill.id,
       name: skill.name,
       source: skill.source,
       cast: Math.max(0, Number(skill.cast ?? 0)),
+      duration: Math.max(0, Number(skill.duration ?? 0)),
       cd: Number(effectiveCd(skill, state.prof, state.woodChoice) ?? 0),
     }));
 

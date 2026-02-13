@@ -232,12 +232,7 @@ export function summarizeEvents(events, totalDuration) {
 }
 
 export function generateSchedule(input) {
-  const {
-    modeDuration,
-    skills,
-    rules,
-    strategy,
-  } = input;
+  const { modeDuration, skills, rules, strategy } = input;
 
   const T = Number(modeDuration);
   const order = Array.isArray(skills) ? skills.filter(Boolean) : [];
@@ -259,6 +254,7 @@ export function generateSchedule(input) {
     };
   }
 
+  const ruleIndex = buildRuleIndex(rules.relations || [], new Map(order.map((s) => [s.key, s])));
   const nextReady = {};
   const ctx = initCtx(relations);
   const prereqOptions = {
@@ -356,7 +352,7 @@ export function generateSchedule(input) {
       } else {
         let nextT = Infinity;
         for (const skill of order) {
-          const nt = nextCastableTime(skill, t, ctx, nextReady, prereqOptions);
+          const nt = nextCastableTime(skill, t, ctx, nextReady, ruleIndex);
           if (nt < nextT) nextT = nt;
         }
 
@@ -405,11 +401,7 @@ export function generateSchedule(input) {
     });
   }
 
-  const merged = mergeVacuumAndSkips(events);
-  const annotated = annotateDeath(merged, rules.deathThreshold);
-  return {
-    events: annotated,
-    stats: summarizeEvents(annotated, T),
-    error: null,
-  };
+  const merged = mergeVacuumAndSkips(events).filter((e) => e.end >= e.start - 1e-9);
+  const finalEvents = annotateDeath(merged, rules.deathThreshold);
+  return { events: finalEvents, stats: summarizeEvents(finalEvents, T), error: null };
 }
