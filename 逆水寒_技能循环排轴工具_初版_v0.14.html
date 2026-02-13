@@ -293,7 +293,9 @@
     </div>
   </div>
 
-<script>
+<script type="module">
+import { SCHED_MODE, SKILL_SOURCE, SKILL_NAME, SKILL_NAME_ALIASES, REQUIRED_SKILLS_MIAOYIN, EXCLUSIVE_RULES } from "./src/constants.js";
+
 const DB = {"meta": {"generated_at": "2026-02-13T02:40:59", "source_file": "逆水寒数据.xlsx", "universal_sheets": ["绝技", "内功", "百家"], "profession_sheets": ["妙音"]}, "modes": [{"id": "fair", "name": "公平论武", "duration": 120}, {"id": "tournament", "name": "比武大会", "duration": 180}], "skills": {"profession": {"妙音": [{"name": "飞泉", "cd": 7.0, "cast": null, "duration": null, "dmg_reduction": null, "note": null}, {"name": "九霄落影", "cd": 20.0, "cast": 1.7, "duration": 6.0, "dmg_reduction": null, "note": null}, {"name": "水月吟", "cd": 10.0, "cast": null, "duration": null, "dmg_reduction": null, "note": null}, {"name": "塞上曲", "cd": 14.0, "cast": null, "duration": 12.0, "dmg_reduction": null, "note": null}, {"name": "春霖", "cd": 16.0, "cast": null, "duration": 30.0, "dmg_reduction": null, "note": null}, {"name": "祈愿", "cd": 35.0, "cast": 4.5, "duration": 3.5, "dmg_reduction": 35.0, "note": null}, {"name": "比翼连枝", "cd": 30.0, "cast": null, "duration": 240.0, "dmg_reduction": null, "note": null}, {"name": "逐月", "cd": 18.0, "cast": 2.0, "duration": 2.0, "dmg_reduction": 25.0, "note": null}, {"name": "逐月·乘风", "cd": null, "cast": 1.5, "duration": 1.5, "dmg_reduction": null, "note": null}, {"name": "飞天", "cd": 45.0, "cast": 4.0, "duration": 20.0, "dmg_reduction": 25.0, "note": null}, {"name": "飞天·莲心", "cd": null, "cast": 1.0, "duration": 1.0, "dmg_reduction": 25.0, "note": null}, {"name": "莲步盈华", "cd": 90.0, "cast": 12.0, "duration": 12.0, "dmg_reduction": 100.0, "note": null}, {"name": "莲步盈华·并蒂", "cd": 60.0, "cast": 12.0, "duration": 12.0, "dmg_reduction": 100.0, "note": null}]}, "universal": {"绝技": [{"name": "净世莲华", "cd": 50, "cast": 4, "duration": 18, "dmg_reduction": null, "note": null}], "内功": [{"name": "不动明王·灵韵", "cd": 35, "cast": 2.0, "duration": 2, "dmg_reduction": 30, "note": null}, {"name": "俯仰太虚", "cd": 12, "cast": null, "duration": 3, "dmg_reduction": 15, "note": "减少流派解控技能冷却3秒"}, {"name": "俯仰太虚·灵韵", "cd": 12, "cast": null, "duration": 4, "dmg_reduction": 15, "note": "减少流派解控技能冷却4秒"}, {"name": "纳百观", "cd": 8, "cast": null, "duration": 6, "dmg_reduction": 4, "note": null}, {"name": "纳百观·灵韵", "cd": 8, "cast": null, "duration": 6, "dmg_reduction": 5, "note": null}], "百家": [{"name": "揽雀尾", "cd": 13, "cast": 3.5, "duration": 4, "dmg_reduction": 60.0, "note": null}, {"name": "凤绽朱华", "cd": 15, "cast": 1.25, "duration": 4, "dmg_reduction": null, "note": null}]}}};
 const $ = (id) => document.getElementById(id);
 
@@ -345,7 +347,7 @@ function effectiveCd(skill, profName, woodChoice) {
 
 function getSchedMode() {
   const checked = document.querySelector('input[name="sched"]:checked');
-  return checked ? checked.value : "strict";
+  return checked ? checked.value : SCHED_MODE.STRICT;
 }
 
 function renderModeOptions() {
@@ -383,7 +385,7 @@ let state = {
   deathThreshold: 3.0,
   prof: DB.meta.profession_sheets[0] || "",
   woodChoice: 0,
-  schedMode: "strict",
+  schedMode: SCHED_MODE.STRICT,
   skillIndex: new Map(),
   selectedKeys: new Set(),
   orderedKeys: [],
@@ -406,23 +408,20 @@ function getKeysByNameAndSource(name, source) {
   return out;
 }
 function isMiaoyinRequiredSkill(s) {
-  if (!(state.prof === "妙音" && s.source === state.prof)) return false;
+  if (!(state.prof === SKILL_SOURCE.PROFESSION && s.source === state.prof)) return false;
   const nm = s.name;
-  if (nm === "逐月") return true;
-  if (nm === "飞天") return true;
-  if (nm === "逐月·乘风" || nm === "逐月乘风" || nm === "逐月.乘风" || nm === "逐月 乘风") return true;
-  if (nm === "飞天·莲心" || nm === "飞天莲心" || nm === "飞天.莲心" || nm === "飞天 莲心") return true;
+  if (SKILL_NAME_ALIASES[SKILL_NAME.ZHUYUE].includes(nm)) return true;
+  if (SKILL_NAME_ALIASES[SKILL_NAME.FEITIAN].includes(nm)) return true;
+  if (SKILL_NAME_ALIASES[SKILL_NAME.ZHUYUE_CHENGFENG].includes(nm)) return true;
+  if (SKILL_NAME_ALIASES[SKILL_NAME.FEITIAN_LIANXIN].includes(nm)) return true;
   return false;
 }
 function enforceRequiredSkills() {
-  if (state.prof !== "妙音") return;
+  if (state.prof !== SKILL_SOURCE.PROFESSION) return;
   // 妙音必带解控/关键技能：逐月、逐月·乘风、飞天、飞天·莲心（兼容若干写法；若数据表尚未包含则不报错）
-  const needs = [
-    {alts:["逐月"]},
-    {alts:["逐月·乘风","逐月乘风","逐月.乘风","逐月 乘风"]},
-    {alts:["飞天"]},
-    {alts:["飞天·莲心","飞天莲心","飞天.莲心","飞天 莲心"]}
-  ];
+  const needs = REQUIRED_SKILLS_MIAOYIN.map(name => ({
+    alts: SKILL_NAME_ALIASES[name] || [name]
+  }));
   for (const item of needs) {
     for (const nm of item.alts) {
       const ks = getKeysByNameAndSource(nm, state.prof);
@@ -436,11 +435,7 @@ function enforceRequiredSkills() {
 
 function enforceMutualExclusion() {
   // 互斥规则：若同时选中，默认优先保留前者（A），取消后者（B）
-  const rules = [
-    {a:"莲步盈华", b:"莲步盈华·并蒂", source:null},         // 不限定来源
-    {a:"俯仰太虚", b:"俯仰太虚·灵韵", source:"内功"},       // 仅内功表互斥
-    {a:"纳百观", b:"纳百观·灵韵", source:"内功"}            // 仅内功表互斥
-  ];
+  const rules = EXCLUSIVE_RULES; // 互斥规则集中在常量文件维护
   for (const r of rules) {
     const aKeys = (r.source ? getKeysByNameAndSource(r.a, r.source) : getKeysByNameExact(r.a));
     const bKeys = (r.source ? getKeysByNameAndSource(r.b, r.source) : getKeysByNameExact(r.b));
@@ -454,11 +449,7 @@ function enforceMutualExclusion() {
 
 function applyExclusiveOnSelect(skill) {
   // 当勾选某项时，自动取消其互斥项（按“当前勾选优先”的口径）
-  const rules = [
-    {a:"莲步盈华", b:"莲步盈华·并蒂", source:null},
-    {a:"俯仰太虚", b:"俯仰太虚·灵韵", source:"内功"},
-    {a:"纳百观", b:"纳百观·灵韵", source:"内功"}
-  ];
+  const rules = EXCLUSIVE_RULES;
   for (const r of rules) {
     const matchSource = (r.source === null) || (skill.source === r.source);
     if (!matchSource) continue;
@@ -574,7 +565,7 @@ function renderSkillPicker() {
         ? `冷却：<span class="mono">${fmt(baseCd)}</span>s → <span class="mono">${fmt(effCd)}</span>s`
         : `冷却：<span class="mono">${fmt(baseCd)}</span>s`;
 
-      const extra = (s.source === "内功") ? ` ｜ <span class="muted">内功：不触发3木特效</span>` : "";
+      const extra = (s.source === SKILL_SOURCE.NEIGONG) ? ` ｜ <span class="muted">内功：不触发3木特效</span>` : "";
 
       info.innerHTML = `${cdText} ｜ 霸体：<span class="mono">${(cast>0)?cast:0}</span>s` +
         (willLoopTrap ? ` ｜ <span style="color:#ffd9d9;">不可选：0有效CD+0霸体会死循环</span>` : "") +
@@ -738,20 +729,20 @@ function annotateDeath(events, threshold) {
 function initCtx() {
   return { lastFeitian: null, feitianWindowEnd: null, lianxinUsed: false };
 }
-function isFeitian(n) { return n === "飞天"; }
-function isLianxin(n) { return n === "飞天·莲心"; }
+function isFeitian(n) { return n === SKILL_NAME.FEITIAN; }
+function isLianxin(n) { return SKILL_NAME_ALIASES[SKILL_NAME.FEITIAN_LIANXIN].includes(n); }
 function isZhuyue(nm) {
-  return nm === "逐月";
+  return SKILL_NAME_ALIASES[SKILL_NAME.ZHUYUE].includes(nm);
 }
 function isZhuyueChengfeng(nm) {
   // 与“逐月”是不同技能
-  return nm === "逐月·乘风" || nm === "逐月乘风" || nm === "逐月.乘风" || nm === "逐月 乘风";
+  return SKILL_NAME_ALIASES[SKILL_NAME.ZHUYUE_CHENGFENG].includes(nm);
 }
 function isFuyangTaixu(nm) {
-  return nm === "俯仰太虚";
+  return SKILL_NAME_ALIASES[SKILL_NAME.FUYANG_TAIXU].includes(nm);
 }
 function isFuyangTaixuLingyun(nm) {
-  return nm === "俯仰太虚·灵韵" || nm === "俯仰太虚灵韵" || nm === "俯仰太虚.灵韵" || nm === "俯仰太虚 灵韵";
+  return SKILL_NAME_ALIASES[SKILL_NAME.FUYANG_TAIXU_LINGYUN].includes(nm);
 }
 
 function prereqOk(skill, t, ctx, nextReady, zhuyueKey) {
@@ -773,7 +764,7 @@ function prereqOk(skill, t, ctx, nextReady, zhuyueKey) {
   // 俯仰太虚 / 俯仰太虚·灵韵：只能在“逐月”的冷却时间内触发
   if (isFuyangTaixu(nm) || isFuyangTaixuLingyun(nm)) {
     // 仅对妙音做逐月冷却窗口限制（其他职业数据未定义，默认不限制）
-    if (state.prof !== "妙音") return true;
+    if (state.prof !== SKILL_SOURCE.PROFESSION) return true;
     if (!zhuyueKey) return false; // 未携带“逐月”则不可用（与“逐月·乘风”无关）
     const zyReady = (nextReady && nextReady[zhuyueKey] !== undefined) ? nextReady[zhuyueKey] : undefined;
     if (zyReady === undefined) return false; // 对应“逐月”技能从未释放过，则不处于冷却窗口
@@ -815,7 +806,7 @@ function applyWood3Proc(nextReady, profKeys, t) {
 }
 
 function canTriggerWood3ByCast(skill) {
-  return skill.source !== "内功";
+  return skill.source !== SKILL_SOURCE.NEIGONG;
 }
 
 function nextCastableTime(skill, t, ctx, nextReady, zhuyueKey) {
@@ -856,9 +847,9 @@ function generateSchedule() {
   // 用于“俯仰太虚/灵韵”前置判定：逐月（优先）/逐月（兜底）的 key（必须在本次选择中存在）
   const zhuyueKey = (function() {
     // 俯仰太虚联动：仅对“妙音”生效，且仅绑定“逐月”（与“逐月·乘风”是不同技能）
-    if (prof !== "妙音") return null;
+    if (prof !== SKILL_SOURCE.PROFESSION) return null;
     for (const s of order) {
-      if (s && s.name === "逐月") return s.key;
+      if (s && s.name === SKILL_NAME.ZHUYUE) return s.key;
     }
     return null;
   })();
@@ -900,7 +891,7 @@ function generateSchedule() {
   while (t < T - 1e-9 && guard < 300000) {
     guard++;
 
-    if (mode === "strict") {
+    if (mode === SCHED_MODE.STRICT) {
       const s = order[idx];
 
       if (!prereqOk(s, t, ctx, nextReady, zhuyueKey)) {
@@ -1029,7 +1020,7 @@ function renderResults(eventsAll) {
   const woodLine = (woodChoice === 0) ? ` ｜ 木周天：<b>未选择</b>` :
     ` ｜ 木周天：<b>${woodChoice}木</b>` + (woodChoice===3 ? `（特效触发：<b>${wood3ProcCount}</b> 次）` : "");
 
-  const schedLine = state.schedMode === "dynamic" ? "动态" : "严格";
+  const schedLine = state.schedMode === SCHED_MODE.DYNAMIC ? "动态" : "严格";
 
     const filterLine = isFilterNoCastOn() ? ` ｜ 已隐藏无霸体技能：<b>${fmt(hiddenNoCast)}</b> 条` : ``;
 
