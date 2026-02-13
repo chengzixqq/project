@@ -28,6 +28,9 @@ function main() {
   for (const required of ['meta', 'skills', 'rules']) {
     if (!(required in db)) issues.push(`缺失顶层字段：${required}`);
   }
+  if (!skill?.id || typeof skill.id !== 'string') {
+    issues.push(`[${sourceLabel}] ${skill?.name || '<unknown>'} 缺失专属ID(id)`);
+  }
 
   if (!Array.isArray(db.skills)) {
     issues.push('skills 必须为数组');
@@ -114,6 +117,23 @@ function main() {
   console.log(`规则总数: ${db.rules.length}`);
   console.log(`职业列表: ${(db.meta.professions || []).join(', ') || '(空)'}`);
   console.log(`江湖分类: ${(db.meta.jianghu_categories || []).join(', ') || '(空)'}`);
+
+  const relationTypes = new Set(['前置', '替换技能', '互斥', '共享时间', '共享冷却', '窗口期']);
+  const allIds = new Set();
+  for (const skills of Object.values(profession)) for (const s of skills) if (s?.id) allIds.add(s.id);
+  for (const skills of Object.values(universal)) for (const s of skills) if (s?.id) allIds.add(s.id);
+
+  const relations = db?.rules?.relations ?? [];
+  for (const r of relations) {
+    if (!relationTypes.has(r?.relation_type)) {
+      issues.push(`机制关系类型非法: ${r?.relation_type || '<empty>'}`);
+    }
+    if (!allIds.has(r?.from_id)) issues.push(`机制 from_id 不存在: ${r?.from_id || '<empty>'}`);
+    if (!allIds.has(r?.to_id)) issues.push(`机制 to_id 不存在: ${r?.to_id || '<empty>'}`);
+    if ((r?.relation_type === '替换技能' || r?.relation_type === '窗口期') && !isNum(r?.param)) {
+      issues.push(`机制 ${r?.relation_type} 缺少参数: ${r?.from_id} -> ${r?.to_id}`);
+    }
+  }
 
   if (warnings.length > 0) {
     console.warn('\n== 校验警告 ==');
