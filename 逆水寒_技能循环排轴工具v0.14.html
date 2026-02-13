@@ -118,7 +118,7 @@
     <div class="sub">
       数据来源：本地 Excel（已内嵌）｜职业：<span class="mono">妙音</span>；通用：<span class="mono">绝技 / 内功 / 百家</span>。<br/>
       口径：霸体为空/≤0按0秒；冷却期间不可再次施放；真空=按当前排轴策略无可施放技能。<br/>
-      木周天：仅影响<strong>职业技能</strong>有效冷却；3木特效仅由<strong>非内功</strong>技能施放触发（职业/绝技/百家均可触发），效果仅作用于职业技能冷却。<br/>妙音：<strong>逐月</strong> 与 <strong>逐月·乘风</strong> 为必带技能（解控），默认强制携带。<br/>
+      木周天：仅影响<strong>职业技能</strong>有效冷却；3木特效仅由<strong>非内功</strong>技能施放触发（职业/绝技/百家均可触发），效果仅作用于职业技能冷却。<br/>妙音：<strong>逐月</strong>、<strong>逐月·乘风</strong>（解控）与 <strong>飞天</strong>、<strong>飞天·莲心</strong>（联动关键技能）为必带技能，默认强制携带。<br/>
       新增：排轴策略（严格/动态）；飞天联动限制；俯仰太虚联动限制；莲步盈华互斥选择。
     </div>
 
@@ -216,7 +216,7 @@
       <div id="hintMissingCast" class="hint hidden" style="margin-top:12px;"></div>
       <div id="hintMissingCd" class="hint hidden" style="margin-top:12px;"></div>
       <div id="hintExclusives" class="hint" style="margin-top:12px;">
-        互斥提示：<span class="mono">莲步盈华</span> 与 <span class="mono">莲步盈华·并蒂</span> 只能同时携带一个；<span class="mono">俯仰太虚</span> 与 <span class="mono">俯仰太虚·灵韵</span> 互斥；<span class="mono">纳百观</span> 与 <span class="mono">纳百观·灵韵</span> 互斥。<br/>妙音必带：<span class="mono">逐月</span>、<span class="mono">逐月·乘风</span>（解控，不可取消）。
+        互斥提示：<span class="mono">莲步盈华</span> 与 <span class="mono">莲步盈华·并蒂</span> 只能同时携带一个；<span class="mono">俯仰太虚</span> 与 <span class="mono">俯仰太虚·灵韵</span> 互斥；<span class="mono">纳百观</span> 与 <span class="mono">纳百观·灵韵</span> 互斥。<br/>妙音必带：<span class="mono">逐月</span>、<span class="mono">逐月·乘风</span>（解控）｜<span class="mono">飞天</span>、<span class="mono">飞天·莲心</span>（联动关键技能，均不可取消）。
       </div>
 
       <div id="skillContainer" class="skill-grid" style="margin-top:12px;"></div>
@@ -476,7 +476,7 @@ function renderSkillPicker() {
   const prof = state.prof;
   state.skillIndex = buildSkillIndex(prof);
 
-  // 妙音必带：逐月、逐月·乘风
+  // 妙音必带：逐月、逐月·乘风（解控）＋飞天、飞天·莲心（联动关键技能）
   enforceRequiredSkills();
 
   const container = $("skillContainer");
@@ -553,7 +553,7 @@ function renderSkillPicker() {
       if (required) state.selectedKeys.add(s.key);
       cb.checked = state.selectedKeys.has(s.key);
       cb.disabled = willLoopTrap || required;
-      if (required) cb.title = "妙音必带解控：逐月/逐月·乘风（不可取消）";
+      if (required) cb.title = "妙音必带：逐月、逐月·乘风（解控）＋飞天、飞天·莲心（联动关键技能）（不可取消）";
       cb.addEventListener("change", () => {
         if (cb.checked) {
           state.selectedKeys.add(s.key);
@@ -691,7 +691,7 @@ function renderOrderList() {
     const required = isMiaoyinRequiredSkill(s);
     if (required) {
       del.disabled = true;
-      del.title = "妙音必带解控：不可移除";
+      del.title = "妙音必带：逐月、逐月·乘风（解控）＋飞天、飞天·莲心（联动关键技能）（不可移除）";
     }
     del.addEventListener("click", ()=> {
       state.selectedKeys.delete(k);
