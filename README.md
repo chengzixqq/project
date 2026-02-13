@@ -45,10 +45,11 @@ npx serve -l 5173
 当前前端实际读取的是 `src/data/db.js`，该文件的 `meta.source_file` 指向 `逆水寒数据.xlsx`。建议把 Excel 当成**编辑源**，`db.js` 当成**发布产物**，统一按以下流程维护：
 
 1. 修改 `逆水寒数据.xlsx`。
-2. 导出（或更新）`src/data/db.js`。
+2. 运行构建脚本，从 4 张表（机制/职业技能/江湖技能/内功）生成 `src/data/db.js`。
 3. 运行数据校验脚本，避免重复名、负数、异常减伤值进入主分支。
 
 ```bash
+python3 tools/build-db-from-xlsx.py
 node tools/check-db.mjs
 ```
 

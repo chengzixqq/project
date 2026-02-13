@@ -1,7 +1,7 @@
+import { DB } from '../../data/db.js';
+
 export function buildSchedulerInputFromState(state, options) {
-  const {
-    effectiveCd,
-  } = options;
+  const { effectiveCd } = options;
 
   const modeDuration = Number(state.modeDuration);
   const orderedSkills = state.orderedKeys
@@ -9,13 +9,13 @@ export function buildSchedulerInputFromState(state, options) {
     .filter(Boolean)
     .map((skill) => ({
       key: skill.key,
+      id: skill.id,
       name: skill.name,
       source: skill.source,
       cast: Math.max(0, Number(skill.cast ?? 0)),
+      duration: Math.max(0, Number(skill.duration ?? 0)),
       cd: Number(effectiveCd(skill, state.prof, state.woodChoice) ?? 0),
     }));
-
-  const zhuyueSkill = orderedSkills.find((skill) => skill.name === "逐月");
 
   return {
     modeDuration,
@@ -24,7 +24,7 @@ export function buildSchedulerInputFromState(state, options) {
       profession: state.prof,
       woodChoice: state.woodChoice,
       deathThreshold: Number(state.deathThreshold) || 0,
-      zhuyueKey: zhuyueSkill?.key || null,
+      relations: DB?.rules?.relations || [],
     },
     strategy: state.schedMode,
   };
