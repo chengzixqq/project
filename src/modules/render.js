@@ -1,4 +1,4 @@
-import { DB, buildSkillIndex, collectOrderedFromSelected, effectiveCd, state } from './state.js';
+import { DB, buildSkillIndex, collectOrderedFromSelected, effectiveCd, getProfessionOptions, state } from './state.js';
 import { applyExclusiveOnSelect, enforceMutualExclusion, enforceRequiredSkills, isMiaoyinRequiredSkill } from './rules.js';
 
 export const $ = (id) => document.getElementById(id);
@@ -24,8 +24,11 @@ export function renderModeOptions() {
 
 export function renderProfOptions() {
   const sel = $('profSelect'); sel.innerHTML = '';
-  DB.meta.profession_sheets.forEach((p) => { const opt = document.createElement('option'); opt.value = p; opt.textContent = p; sel.appendChild(opt); });
-  sel.value = DB.meta.profession_sheets[0] || '';
+  const professions = getProfessionOptions();
+  professions.forEach((p) => { const opt = document.createElement('option'); opt.value = p; opt.textContent = p; sel.appendChild(opt); });
+  const fallback = professions[0] || '';
+  if (!professions.includes(state.prof)) state.prof = fallback;
+  sel.value = state.prof || fallback;
 }
 
 export function renderSkillPicker() {
@@ -33,13 +36,21 @@ export function renderSkillPicker() {
   const container = $('skillContainer'); container.innerHTML = '';
   const search = ($('skillSearch').value || '').trim().toLowerCase();
   const grouped = new Map();
-  for (const s of state.skillIndex.values()) { if (search && !s.name.toLowerCase().includes(search)) continue; if (!grouped.has(s.source)) grouped.set(s.source, []); grouped.get(s.source).push(s); }
+  for (const s of state.skillIndex.values()) {
+    if (search && !s.name.toLowerCase().includes(search)) continue;
+    const bucket = s.bucket || '通用';
+    const src = s.source || bucket;
+    const groupKey = `${bucket}::${src}`;
+    if (!grouped.has(groupKey)) grouped.set(groupKey, { bucket, src, skills: [] });
+    grouped.get(groupKey).skills.push(s);
+  }
   if (!grouped.size) { const empty = document.createElement('div'); empty.className = 'warn'; empty.textContent = '没有匹配到技能（请清空搜索关键词或检查数据）。'; container.appendChild(empty); return; }
 
-  for (const [src, arr] of grouped.entries()) {
+  for (const { bucket, src, skills: arr } of grouped.values()) {
     arr.sort((a, b) => a.name.localeCompare(b.name, 'zh-CN'));
     const sec = document.createElement('div'); sec.className = 'skill-section';
-    sec.innerHTML = `<h3>${src === state.prof ? `职业：${src}` : `通用：${src}`}（${arr.length}）</h3>`;
+    const groupLabel = src && src !== bucket ? `${bucket}/${src}` : bucket;
+    sec.innerHTML = `<h3>${groupLabel}（${arr.length}）</h3>`;
     const list = document.createElement('div'); list.className = 'skill-list';
     for (const s of arr) {
       const willLoopTrap = !((s.cast ?? 0) > 0) && !(effectiveCd(s) > 0);
