@@ -66,18 +66,64 @@ export function renderOrderList() {
 const isFilterNoCastOn = () => !!$('filterNoCast')?.checked;
 export function applyNoCastFilter(events) { if (!isFilterNoCastOn()) return { events, hidden: 0 }; const filtered = events.filter((e) => !(e.type === 'skill' && !(e.cast > 0))); return { events: filtered, hidden: events.length - filtered.length }; }
 
-export function renderResults(eventsAll) {
-  const tbody = $('resultTable').querySelector('tbody'); tbody.innerHTML = '';
+
+function buildSummaryFromEvents(events, totalDuration) {
+  let vacuum = 0;
+  let maxVac = 0;
+  let deathCount = 0;
+  let firstDeathStart = null;
+  let skillCount = 0;
+  let skipCount = 0;
+
+  for (const e of events) {
+    if (e.type === 'vacuum') {
+      const duration = e.duration || 0;
+      vacuum += duration;
+      maxVac = Math.max(maxVac, duration);
+      if (e.death) {
+        deathCount += 1;
+        if (firstDeathStart === null || e.start < firstDeathStart) firstDeathStart = e.start;
+      }
+      continue;
+    }
+    if (e.type === 'skill') {
+      skillCount += 1;
+      continue;
+    }
+    if (e.type === 'skip') skipCount += 1;
+  }
+
+  return {
+    skillCount,
+    skipCount,
+    vacuum,
+    vacuumPct: totalDuration > 0 ? (vacuum / totalDuration) * 100 : 0,
+    maxVac,
+    deathCount,
+    firstDeathStart,
+  };
+}
+
+export function renderResults(eventsAll, stats = null) {
+  const tbody = $('resultTable').querySelector('tbody');
+  tbody.innerHTML = '';
+
   const { events } = applyNoCastFilter(eventsAll);
-  let vacuum = 0; let skillCount = 0;
-  eventsAll.forEach((e) => { if (e.type === 'vacuum') vacuum += e.duration; if (e.type === 'skill') skillCount++; });
-  $('summaryBox').innerHTML = `模式：<b>${DB.modes.find((m) => m.id === state.modeId)?.name || state.modeId}</b> ｜ 时长：<b>${state.modeDuration}s</b> ｜ 施放次数：<b>${skillCount}</b> ｜ 真空总时长：<b>${fmt(vacuum)}s</b>`;
+  const summary = stats || buildSummaryFromEvents(eventsAll, state.modeDuration);
+
+  const deathPart = summary.deathCount > 0
+    ? ` ｜ 死亡段：<b>${summary.deathCount}</b>（首段起点 <b>${fmt(summary.firstDeathStart ?? 0)}s</b>）`
+    : '';
+
+  $('summaryBox').innerHTML = `模式：<b>${DB.modes.find((m) => m.id === state.modeId)?.name || state.modeId}</b> ｜ 时长：<b>${state.modeDuration}s</b> ｜ 施放次数：<b>${summary.skillCount}</b> ｜ 跳过：<b>${summary.skipCount}</b> ｜ 真空总时长：<b>${fmt(summary.vacuum)}s</b>（<b>${fmt(summary.vacuumPct)}%</b>） ｜ 最大真空：<b>${fmt(summary.maxVac)}s</b>${deathPart}`;
+
   events.forEach((e) => {
     const tr = document.createElement('tr');
     tr.innerHTML = `<td class="mono">${fmt(e.start)}s</td><td class="mono">${fmt(e.end)}s</td><td>${e.type === 'skill' ? `<b>${e.name}</b>` : e.type === 'skip' ? `<b>跳过：${e.name}</b>` : '<b>真空</b>'}</td><td>${(e.type === 'skill' || e.type === 'skip') ? e.source : '-'}</td><td class="mono">${e.type === 'skill' ? `${fmt(e.cast)}s` : `${fmt(e.duration || 0)}s`}</td><td class="mono">${e.type === 'skill' ? `${fmt(e.cd)}s` : '-'}</td>`;
     tbody.appendChild(tr);
   });
 }
+
 
 export const buildPlainText = (events) => [`模式：${DB.modes.find((m) => m.id === state.modeId)?.name || state.modeId}（${state.modeDuration}s）`, `排轴策略：${state.schedMode}`, `顺序：${state.orderedKeys.map((k) => state.skillIndex.get(k)?.name).filter(Boolean).join(' -> ')}`, '', ...events.map((e) => (e.type === 'skill' ? `[${fmt(e.start)}s] 施放：${e.name}` : `[${fmt(e.start)}s - ${fmt(e.end)}s] ${e.type === 'skip' ? '跳过' : '真空'}`))].join('\n');
 
