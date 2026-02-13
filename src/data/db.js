@@ -1,6 +1,6 @@
 export const DB = {
   "meta": {
-    "generated_at": "2026-02-13T22:33:17.753Z",
+    "generated_at": "2026-02-13T22:37:03.169Z",
     "source_file": "逆水寒数据.xlsx",
     "profession_sheets": [
       "妙音",
