@@ -32,8 +32,19 @@ function main() {
     issues.push(`[${sourceLabel}] ${skill?.name || '<unknown>'} 缺失专属ID(id)`);
   }
 
-  if (!Array.isArray(db.skills)) {
-    issues.push('skills 必须为数组');
+  if (!skill?.id || typeof skill.id !== 'string' || !skill.id.trim()) {
+    issues.push(`[${sourceLabel}] ${skill?.name || '<unknown>'} 缺失专属ID(id)`);
+    warnings.push(`[${sourceLabel}] ${skill?.name || '<unknown>'} 将被构建流程跳过（缺失专属ID）`);
+  }
+
+  for (const key of ['cd', 'cast', 'duration', 'dmg_reduction']) {
+    const value = skill[key];
+    if (value != null && !isNum(value)) {
+      issues.push(`[${sourceLabel}] ${skill.name || '<unknown>'} 字段 ${key} 必须为数字或空`);
+    }
+    if (isNum(value) && value < 0) {
+      issues.push(`[${sourceLabel}] ${skill.name || '<unknown>'} 字段 ${key} 不能为负数`);
+    }
   }
 
   if (!Array.isArray(db.rules)) {
@@ -49,20 +60,29 @@ function main() {
   const idSeen = new Set();
   const namePerBucketSeen = new Map();
 
-  for (const skill of db.skills) {
-    if (!skill?.id || typeof skill.id !== 'string') {
-      issues.push('技能缺失 id');
-      continue;
-    }
+function checkBucket(skills, sourceLabel) {
+  const issues = [];
+  const warnings = [];
+  const seen = new Set();
+  const seenIds = new Set();
 
     if (idSeen.has(skill.id)) {
       issues.push(`存在重复技能 id：${skill.id}`);
     }
     idSeen.add(skill.id);
 
-    if (!skill.name || typeof skill.name !== 'string') {
-      issues.push(`[${skill.id}] 缺失 name`);
+    const skillId = (s?.id || '').trim();
+    if (skillId) {
+      if (seenIds.has(skillId)) {
+        issues.push(`[${sourceLabel}] 存在重复专属ID(id)：${skillId}`);
+      }
+      seenIds.add(skillId);
     }
+
+    const result = checkSkill(s, sourceLabel);
+    issues.push(...result.issues);
+    warnings.push(...result.warnings);
+  }
 
     if (!VALID_BUCKETS.has(skill.bucket)) {
       issues.push(`[${skill.id}] bucket 非法：${skill.bucket}`);

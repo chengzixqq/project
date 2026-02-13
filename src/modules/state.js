@@ -19,10 +19,18 @@ export const state = {
 
 export function buildSkillIndex(profName) {
   const index = new Map();
-  const allSkills = Array.isArray(DB.skills) ? DB.skills : [];
-  const profSkills = allSkills.filter((s) => s.bucket === '职业技能' && s.source === profName);
-  const uniSkills = allSkills.filter((s) => s.bucket !== '职业技能');
-  for (const s of [...profSkills, ...uniSkills]) index.set(keyOf(s.source, s.name), { ...s, key: keyOf(s.source, s.name) });
+  const profSkills = (DB.skills.profession[profName] || []).map((s) => ({ ...s, source: profName }));
+  const uni = [];
+  for (const cat of Object.keys(DB.skills.universal)) {
+    for (const s of DB.skills.universal[cat] || []) uni.push({ ...s, source: cat });
+  }
+  for (const s of [...profSkills, ...uni]) {
+    if (!s.id || typeof s.id !== 'string') {
+      console.warn(`[buildSkillIndex] 跳过缺失专属ID的技能：${s.name || '<unknown>'}（${s.source}）`);
+      continue;
+    }
+    index.set(s.id, { ...s, key: s.id });
+  }
   return index;
 }
 
@@ -39,12 +47,16 @@ export function effectiveCd(skill, profName = state.prof, woodChoice = state.woo
   return base;
 }
 
+export function getKeyById(id) {
+  return state.skillIndex.has(id) ? id : null;
+}
+
 export function getKeysByNameExact(name) {
-  return [...state.skillIndex.values()].filter((s) => s.name === name).map((s) => s.key);
+  return [...state.skillIndex.values()].filter((s) => s.name === name).map((s) => s.id);
 }
 
 export function getKeysByNameAndSource(name, source) {
-  return [...state.skillIndex.values()].filter((s) => s.name === name && s.source === source).map((s) => s.key);
+  return [...state.skillIndex.values()].filter((s) => s.name === name && s.source === source).map((s) => s.id);
 }
 
 export function collectOrderedFromSelected() {

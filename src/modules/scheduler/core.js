@@ -1,4 +1,4 @@
-import { RELATION_TYPE } from '../../data/rules.js';
+import { SKILL_ID, SKILL_NAME, SKILL_NAME_ALIASES } from '../../constants.js';
 
 const EPS = 1e-12;
 
@@ -47,88 +47,44 @@ function initCtx(relations) {
     durationSlots: new Map(),
   };
 }
-
-function getSlot(groupMap, skillName) {
-  return groupMap.get(skillName) || null;
+function isFeitian(skill) { return skill.id ? skill.id === SKILL_ID.FEITIAN : skill.name === SKILL_NAME.FEITIAN; }
+function isLianxin(skill) { return skill.id ? skill.id === SKILL_ID.FEITIAN_LIANXIN : feitianLianxinAliases.includes(skill.name); }
+function isZhuyueChengfeng(skill) {
+  return skill.id ? skill.id === SKILL_ID.ZHUYUE_CHENGFENG : zhuyueChengfengAliases.includes(skill.name);
 }
-
-function getReadyAt(skill, nextReady, ctx) {
-  const slot = getSlot(ctx.sharedCooldownGroups, skill.name);
-  if (!slot) return nextReady[skill.key] ?? 0;
-  return nextReady[`slot:${slot}`] ?? nextReady[skill.key] ?? 0;
-}
-
-function setReadyAt(skill, readyAt, nextReady, ctx) {
-  nextReady[skill.key] = readyAt;
-  const slot = getSlot(ctx.sharedCooldownGroups, skill.name);
-  if (slot) nextReady[`slot:${slot}`] = readyAt;
-}
-
-function isReplaced(skill, t, ctx) {
-  const until = ctx.replacementUntil.get(skill.name);
-  return until !== undefined && t <= until + EPS;
+function isFuyangTaixu(skill) { return skill.id ? skill.id === SKILL_ID.FUYANG_TAIXU : skill.name === SKILL_NAME.FUYANG_TAIXU; }
+function isFuyangTaixuLingyun(skill) {
+  return skill.id ? skill.id === SKILL_ID.FUYANG_TAIXU_LINGYUN : fuyangTaixuLingyunAliases.includes(skill.name);
 }
 
 function prereqOk(skill, t, ctx, nextReady, options) {
-  const { relations, profession, nameToKey } = options;
+  const { profession, zhuyueKey } = options;
 
-  for (const rule of relations) {
-    if (!nameIn(skill.name, rule.from_id, rule.param)) continue;
-
-    if (rule.relation_type === RELATION_TYPE.WINDOW) {
-      const anchorAt = ctx.castAt.get(rule.to_id);
-      if (anchorAt === undefined) return false;
-      const seconds = Number(rule.param?.seconds ?? rule.param ?? 0);
-      if (t > anchorAt + seconds + EPS) return false;
-      if (rule.param?.blocked_after && ctx.casted.has(rule.param.blocked_after)) return false;
-    }
-
-    if (rule.relation_type === RELATION_TYPE.PREREQUISITE) {
-      const mode = rule.param?.mode || 'casted';
-      if (mode === 'casted' && !ctx.casted.has(rule.to_id)) return false;
-      if (mode === 'target_on_cooldown') {
-        if (profession !== '妙音') continue;
-        const targetKey = nameToKey.get(rule.to_id);
-        if (!targetKey) return false;
-        if ((nextReady[targetKey] ?? 0) <= t + EPS) return false;
-      }
-    }
+  if (isLianxin(skill) || isZhuyueChengfeng(skill)) {
+    if (ctx.lastFeitian === null || ctx.feitianWindowEnd === null) return false;
+    if (isZhuyueChengfeng(skill) && ctx.lianxinUsed) return false;
+    return t <= ctx.feitianWindowEnd + 1e-9;
   }
 
-  for (const rule of relations) {
-    if (rule.relation_type !== RELATION_TYPE.REPLACEMENT) continue;
-    if (!nameIn(skill.name, rule.to_id, rule.param)) continue;
-    if (!isReplaced(skill, t, ctx)) continue;
-    return false;
+  if (isFuyangTaixu(skill) || isFuyangTaixuLingyun(skill)) {
+    if (profession !== "妙音") return true;
+    if (!zhuyueKey) return false;
+    const readyAt = nextReady[zhuyueKey];
+    if (readyAt === undefined) return false;
+    return readyAt > t + EPS;
   }
 
   return true;
 }
 
-function onCastUpdateCtx(skill, t, ctx, relations) {
-  ctx.castAt.set(skill.name, t);
-  ctx.casted.add(skill.name);
-
-  for (const rule of relations) {
-    if (rule.relation_type === RELATION_TYPE.REPLACEMENT && nameIn(skill.name, rule.to_id, rule.param)) {
-      const seconds = Number(rule.param?.seconds ?? rule.param ?? 0);
-      ctx.replacementUntil.set(rule.to_id, t + seconds);
-    }
+function onCastUpdateCtx(skill, t, ctx) {
+  if (isFeitian(skill)) {
+    ctx.lastFeitian = t;
+    ctx.feitianWindowEnd = t + 20;
+    ctx.lianxinUsed = false;
+    return;
   }
-
-  const durationSlot = getSlot(ctx.sharedDurationGroups, skill.name);
-  if (durationSlot) ctx.durationSlots.set(durationSlot, t + Number(skill.cast ?? 0));
-}
-
-function resolveReplacement(skill, t, ctx, relations, nameToSkill) {
-  for (const rule of relations) {
-    if (rule.relation_type !== RELATION_TYPE.REPLACEMENT) continue;
-    if (!nameIn(skill.name, rule.to_id, rule.param)) continue;
-    if (!isReplaced(skill, t, ctx)) continue;
-    const replacement = nameToSkill.get(rule.from_id);
-    if (replacement) return replacement;
-  }
-  return skill;
+  if (isLianxin(skill)) ctx.lianxinUsed = true;
 }
 
 function countProfCooldown(nextReady, profKeys, t) {
