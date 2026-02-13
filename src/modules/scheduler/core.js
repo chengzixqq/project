@@ -14,8 +14,9 @@ function withAliases(ruleId, ruleParam = {}) {
   return [ruleId, ...aliases];
 }
 
-function nameIn(name, id, param) {
-  return withAliases(id, param).includes(name);
+function targetNameIn(name, id, param = {}) {
+  const aliases = [...(param.aliases || []), ...(param.target_aliases || [])];
+  return [id, ...aliases].includes(name);
 }
 
 function initCtx(relations) {
@@ -72,25 +73,35 @@ function setReadyAt(skill, readyAt, nextReady, ctx) {
   ctx.casted.add(ruleSkillId(skill));
 }
 
-function resolveReplacement(baseSkill, t, ctx, relations, nameToSkill, nextReady) {
+function resolveReplacement(baseSkill, t, ctx, relations, nameToSkill, nextReady, prereqOptions) {
   for (const rule of relations) {
     if (rule.relation_type !== RELATION_TYPE.REPLACEMENT) continue;
-    if (!nameIn(baseSkill.name, rule.to_id, rule.param)) continue;
+    if (!targetNameIn(baseSkill.name, rule.to_id, rule.param)) continue;
+
     const source = nameToSkill.get(rule.from_id);
     if (!source) continue;
+
+    if (!prereqOk(source, t, ctx, nextReady, prereqOptions)) continue;
+
     const sourceReady = getReadyAt(source, nextReady, ctx);
     if (sourceReady <= t + EPS) return source;
   }
   return baseSkill;
 }
-function isFeitian(skill) { return skill.id ? skill.id === SKILL_ID.FEITIAN : skill.name === SKILL_NAME.FEITIAN; }
-function isLianxin(skill) { return skill.id ? skill.id === SKILL_ID.FEITIAN_LIANXIN : feitianLianxinAliases.includes(skill.name); }
-function isZhuyueChengfeng(skill) {
-  return skill.id ? skill.id === SKILL_ID.ZHUYUE_CHENGFENG : zhuyueChengfengAliases.includes(skill.name);
+function isFeitian(skill) {
+  return skill?.id === SKILL_ID.FEITIAN || (SKILL_NAME_ALIASES[SKILL_NAME.FEITIAN] || [SKILL_NAME.FEITIAN]).includes(skill?.name);
 }
-function isFuyangTaixu(skill) { return skill.id ? skill.id === SKILL_ID.FUYANG_TAIXU : skill.name === SKILL_NAME.FUYANG_TAIXU; }
+function isLianxin(skill) {
+  return skill?.id === SKILL_ID.FEITIAN_LIANXIN || feitianLianxinAliases.includes(skill?.name);
+}
+function isZhuyueChengfeng(skill) {
+  return skill?.id === SKILL_ID.ZHUYUE_CHENGFENG || zhuyueChengfengAliases.includes(skill?.name);
+}
+function isFuyangTaixu(skill) {
+  return skill?.id === SKILL_ID.FUYANG_TAIXU || (SKILL_NAME_ALIASES[SKILL_NAME.FUYANG_TAIXU] || [SKILL_NAME.FUYANG_TAIXU]).includes(skill?.name);
+}
 function isFuyangTaixuLingyun(skill) {
-  return skill.id ? skill.id === SKILL_ID.FUYANG_TAIXU_LINGYUN : fuyangTaixuLingyunAliases.includes(skill.name);
+  return skill?.id === SKILL_ID.FUYANG_TAIXU_LINGYUN || fuyangTaixuLingyunAliases.includes(skill?.name);
 }
 
 function prereqOk(skill, t, ctx, nextReady, options) {
@@ -265,7 +276,7 @@ export function generateSchedule(input) {
   const events = [];
 
   const doCast = (baseSkill) => {
-    const skill = resolveReplacement(baseSkill, t, ctx, relations, nameToSkill, nextReady);
+    const skill = resolveReplacement(baseSkill, t, ctx, relations, nameToSkill, nextReady, prereqOptions);
     const cast = Math.max(0, Number(skill.cast ?? 0));
     const cdEff = Number(skill.cd ?? 0);
 
