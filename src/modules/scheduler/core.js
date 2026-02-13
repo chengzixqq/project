@@ -1,82 +1,134 @@
+import { RELATION_TYPE } from '../../data/rules.js';
+
 const EPS = 1e-12;
 
-function initCtx() {
-  return { lastCastAt: Object.create(null) };
+function withAliases(ruleId, ruleParam = {}) {
+  const aliases = [];
+  for (const key of ['aliases', 'target_aliases', 'anchor_aliases']) {
+    for (const item of (ruleParam[key] || [])) aliases.push(item);
+  }
+  return [ruleId, ...aliases];
 }
 
-function buildRuleIndex(relations, skillsByKey) {
-  const byTargetPrereq = new Map();
-  const byTargetWindow = new Map();
-  const byTargetSharedTime = new Map();
-  const replacementByTarget = new Map();
-  const sharedCooldownPairs = [];
+function nameIn(name, id, param) {
+  return withAliases(id, param).includes(name);
+}
 
-  for (const r of relations || []) {
-    if (r.relation_type === '前置') {
-      if (!byTargetPrereq.has(r.from_id)) byTargetPrereq.set(r.from_id, []);
-      byTargetPrereq.get(r.from_id).push(r.to_id);
-    } else if (r.relation_type === '窗口期') {
-      if (!byTargetWindow.has(r.from_id)) byTargetWindow.set(r.from_id, []);
-      byTargetWindow.get(r.from_id).push({ anchor: r.to_id, window: Number(r.param) || 0 });
-    } else if (r.relation_type === '替换技能') {
-      if (!replacementByTarget.has(r.to_id)) replacementByTarget.set(r.to_id, []);
-      replacementByTarget.get(r.to_id).push({ anchor: r.from_id, delay: Number(r.param) || 0 });
-    } else if (r.relation_type === '共享时间') {
-      if (!byTargetSharedTime.has(r.from_id)) byTargetSharedTime.set(r.from_id, []);
-      const duration = Number(skillsByKey.get(r.to_id)?.duration || 0);
-      byTargetSharedTime.get(r.from_id).push({ anchor: r.to_id, duration });
-    } else if (r.relation_type === '共享冷却') {
-      sharedCooldownPairs.push([r.from_id, r.to_id]);
+function initCtx(relations) {
+  const sharedCooldownGroups = new Map();
+  const sharedDurationGroups = new Map();
+  let slotId = 0;
+
+  const bindGroup = (groupMap, a, b) => {
+    const currentA = groupMap.get(a);
+    const currentB = groupMap.get(b);
+    if (currentA && currentB && currentA !== currentB) {
+      for (const [key, val] of groupMap.entries()) {
+        if (val === currentB) groupMap.set(key, currentA);
+      }
+      return;
     }
+    const target = currentA || currentB || `slot_${slotId++}`;
+    groupMap.set(a, target);
+    groupMap.set(b, target);
+  };
+
+  for (const rule of relations) {
+    if (rule.relation_type === RELATION_TYPE.SHARED_COOLDOWN) bindGroup(sharedCooldownGroups, rule.from_id, rule.to_id);
+    if (rule.relation_type === RELATION_TYPE.SHARED_DURATION) bindGroup(sharedDurationGroups, rule.from_id, rule.to_id);
   }
 
   return {
-    byTargetPrereq,
-    byTargetWindow,
-    byTargetSharedTime,
-    replacementByTarget,
-    sharedCooldownPairs,
+    castAt: new Map(),
+    casted: new Set(),
+    sharedCooldownGroups,
+    sharedDurationGroups,
+    replacementUntil: new Map(),
+    durationSlots: new Map(),
   };
 }
 
-function prereqOk(skill, t, ctx, ruleIndex) {
-  const key = skill.key;
+function getSlot(groupMap, skillName) {
+  return groupMap.get(skillName) || null;
+}
 
-  const reqs = ruleIndex.byTargetPrereq.get(key) || [];
-  for (const anchor of reqs) {
-    if (ctx.lastCastAt[anchor] == null) return false;
+function getReadyAt(skill, nextReady, ctx) {
+  const slot = getSlot(ctx.sharedCooldownGroups, skill.name);
+  if (!slot) return nextReady[skill.key] ?? 0;
+  return nextReady[`slot:${slot}`] ?? nextReady[skill.key] ?? 0;
+}
+
+function setReadyAt(skill, readyAt, nextReady, ctx) {
+  nextReady[skill.key] = readyAt;
+  const slot = getSlot(ctx.sharedCooldownGroups, skill.name);
+  if (slot) nextReady[`slot:${slot}`] = readyAt;
+}
+
+function isReplaced(skill, t, ctx) {
+  const until = ctx.replacementUntil.get(skill.name);
+  return until !== undefined && t <= until + EPS;
+}
+
+function prereqOk(skill, t, ctx, nextReady, options) {
+  const { relations, profession, nameToKey } = options;
+
+  for (const rule of relations) {
+    if (!nameIn(skill.name, rule.from_id, rule.param)) continue;
+
+    if (rule.relation_type === RELATION_TYPE.WINDOW) {
+      const anchorAt = ctx.castAt.get(rule.to_id);
+      if (anchorAt === undefined) return false;
+      const seconds = Number(rule.param?.seconds ?? rule.param ?? 0);
+      if (t > anchorAt + seconds + EPS) return false;
+      if (rule.param?.blocked_after && ctx.casted.has(rule.param.blocked_after)) return false;
+    }
+
+    if (rule.relation_type === RELATION_TYPE.PREREQUISITE) {
+      const mode = rule.param?.mode || 'casted';
+      if (mode === 'casted' && !ctx.casted.has(rule.to_id)) return false;
+      if (mode === 'target_on_cooldown') {
+        if (profession !== '妙音') continue;
+        const targetKey = nameToKey.get(rule.to_id);
+        if (!targetKey) return false;
+        if ((nextReady[targetKey] ?? 0) <= t + EPS) return false;
+      }
+    }
   }
 
-  const windows = ruleIndex.byTargetWindow.get(key) || [];
-  for (const w of windows) {
-    const castAt = ctx.lastCastAt[w.anchor];
-    if (castAt == null) return false;
-    if (t > castAt + w.window + EPS) return false;
-  }
-
-  const replacements = ruleIndex.replacementByTarget.get(key) || [];
-  for (const rp of replacements) {
-    const castAt = ctx.lastCastAt[rp.anchor];
-    if (castAt == null) return false;
-    if (t + EPS < castAt + rp.delay) return false;
-  }
-
-  const sharedTimes = ruleIndex.byTargetSharedTime.get(key) || [];
-  for (const st of sharedTimes) {
-    const castAt = ctx.lastCastAt[st.anchor];
-    if (castAt == null) return false;
-    if (st.duration > 0 && t > castAt + st.duration + EPS) return false;
+  for (const rule of relations) {
+    if (rule.relation_type !== RELATION_TYPE.REPLACEMENT) continue;
+    if (!nameIn(skill.name, rule.to_id, rule.param)) continue;
+    if (!isReplaced(skill, t, ctx)) continue;
+    return false;
   }
 
   return true;
 }
 
-function onCastUpdateCtx(skill, t, ctx, nextReady, ruleIndex) {
-  ctx.lastCastAt[skill.key] = t;
-  for (const [a, b] of ruleIndex.sharedCooldownPairs) {
-    if (skill.key === a) nextReady[b] = nextReady[a];
-    else if (skill.key === b) nextReady[a] = nextReady[b];
+function onCastUpdateCtx(skill, t, ctx, relations) {
+  ctx.castAt.set(skill.name, t);
+  ctx.casted.add(skill.name);
+
+  for (const rule of relations) {
+    if (rule.relation_type === RELATION_TYPE.REPLACEMENT && nameIn(skill.name, rule.to_id, rule.param)) {
+      const seconds = Number(rule.param?.seconds ?? rule.param ?? 0);
+      ctx.replacementUntil.set(rule.to_id, t + seconds);
+    }
   }
+
+  const durationSlot = getSlot(ctx.sharedDurationGroups, skill.name);
+  if (durationSlot) ctx.durationSlots.set(durationSlot, t + Number(skill.cast ?? 0));
+}
+
+function resolveReplacement(skill, t, ctx, relations, nameToSkill) {
+  for (const rule of relations) {
+    if (rule.relation_type !== RELATION_TYPE.REPLACEMENT) continue;
+    if (!nameIn(skill.name, rule.to_id, rule.param)) continue;
+    if (!isReplaced(skill, t, ctx)) continue;
+    const replacement = nameToSkill.get(rule.from_id);
+    if (replacement) return replacement;
+  }
+  return skill;
 }
 
 function countProfCooldown(nextReady, profKeys, t) {
@@ -132,10 +184,10 @@ export function annotateDeath(events, threshold) {
     : { ...event, death: event.duration >= th }));
 }
 
-export function nextCastableTime(skill, t, ctx, nextReady, ruleIndex) {
-  if (!prereqOk(skill, t, ctx, ruleIndex)) return Infinity;
-  const readyAt = Math.max(t, nextReady[skill.key] ?? 0);
-  if (!prereqOk(skill, readyAt, ctx, ruleIndex)) return Infinity;
+export function nextCastableTime(skill, t, ctx, nextReady, prereqOptions) {
+  if (!prereqOk(skill, t, ctx, nextReady, prereqOptions)) return Infinity;
+  const readyAt = Math.max(t, getReadyAt(skill, nextReady, ctx));
+  if (!prereqOk(skill, readyAt, ctx, nextReady, prereqOptions)) return Infinity;
   return readyAt;
 }
 
@@ -189,6 +241,9 @@ export function generateSchedule(input) {
     return { events: empty, stats: summarizeEvents(empty, T), error: null };
   }
 
+  const relations = rules.relations || [];
+  const nameToKey = new Map(order.map((s) => [s.name, s.key]));
+  const nameToSkill = new Map(order.map((s) => [s.name, s]));
   const profKeys = order.filter((s) => s.source === rules.profession).map((s) => s.key);
   const traps = order.filter((s) => !((s.cast ?? 0) > 0) && !((s.cd ?? 0) > 0));
   if (traps.length > 0) {
@@ -201,7 +256,12 @@ export function generateSchedule(input) {
 
   const ruleIndex = buildRuleIndex(rules.relations || [], new Map(order.map((s) => [s.key, s])));
   const nextReady = {};
-  const ctx = initCtx();
+  const ctx = initCtx(relations);
+  const prereqOptions = {
+    profession: rules.profession,
+    relations,
+    nameToKey,
+  };
 
   const WOOD3_ICD = 20;
   let wood3NextReady = 0;
@@ -212,7 +272,8 @@ export function generateSchedule(input) {
   let lastT = t;
   const events = [];
 
-  const doCast = (skill) => {
+  const doCast = (baseSkill) => {
+    const skill = resolveReplacement(baseSkill, t, ctx, relations, nameToSkill);
     const cast = Math.max(0, Number(skill.cast ?? 0));
     const cdEff = Number(skill.cd ?? 0);
 
@@ -227,10 +288,20 @@ export function generateSchedule(input) {
     }
 
     const end = Math.min(t + cast, T);
-    events.push({ type: 'skill', key: skill.key, name: skill.name, source: skill.source, start: t, end, cast, cd: cdEff, wood3Triggered });
+    events.push({
+      type: 'skill',
+      key: skill.key,
+      name: skill.name,
+      source: skill.source,
+      start: t,
+      end,
+      cast,
+      cd: cdEff,
+      wood3Triggered,
+    });
 
-    nextReady[skill.key] = t + cdEff;
-    onCastUpdateCtx(skill, t, ctx, nextReady, ruleIndex);
+    setReadyAt(skill, t + cdEff, nextReady, ctx);
+    onCastUpdateCtx(skill, t, ctx, relations);
     t += cast;
   };
 
@@ -239,13 +310,20 @@ export function generateSchedule(input) {
 
     if (strategy === 'strict') {
       const skill = order[idx];
-      if (!prereqOk(skill, t, ctx, ruleIndex)) {
-        events.push({ type: 'skip', start: t, end: t, name: skill.name, source: skill.source, reason: '前置条件不满足' });
+      if (!prereqOk(skill, t, ctx, nextReady, prereqOptions)) {
+        events.push({
+          type: 'skip',
+          start: t,
+          end: t,
+          name: skill.name,
+          source: skill.source,
+          reason: '前置条件不满足',
+        });
         idx = (idx + 1) % order.length;
         continue;
       }
 
-      const ready = nextReady[skill.key] ?? 0;
+      const ready = getReadyAt(skill, nextReady, ctx);
       if (ready > t + EPS) {
         const endVac = Math.min(ready, T);
         events.push({ type: 'vacuum', start: t, end: endVac, duration: endVac - t });
@@ -259,8 +337,8 @@ export function generateSchedule(input) {
       let found = -1;
       for (let off = 0; off < order.length; off += 1) {
         const skill = order[(idx + off) % order.length];
-        if (!prereqOk(skill, t, ctx, ruleIndex)) continue;
-        const ready = nextReady[skill.key] ?? 0;
+        if (!prereqOk(skill, t, ctx, nextReady, prereqOptions)) continue;
+        const ready = getReadyAt(skill, nextReady, ctx);
         if (ready <= t + EPS) {
           found = off;
           break;
@@ -279,7 +357,13 @@ export function generateSchedule(input) {
         }
 
         if (!Number.isFinite(nextT) || nextT <= t + EPS) {
-          events.push({ type: 'vacuum', start: t, end: Math.min(T, t), duration: 0, note: '动态排轴无法推进：当前无可施放技能（可能因前置条件未满足或冷却限制）。' });
+          events.push({
+            type: 'vacuum',
+            start: t,
+            end: Math.min(T, t),
+            duration: 0,
+            note: '动态排轴无法推进：当前无可施放技能（可能因前置条件未满足或冷却限制）。',
+          });
           break;
         }
 
@@ -296,13 +380,25 @@ export function generateSchedule(input) {
     }
 
     if (stagnantCount > order.length * 120) {
-      events.push({ type: 'vacuum', start: t, end: Math.min(T, t), duration: 0, note: '检测到时间长期不推进（大量0秒占用/跳过循环）。请补齐“霸体时间”或调整排轴/前置条件。' });
+      events.push({
+        type: 'vacuum',
+        start: t,
+        end: Math.min(T, t),
+        duration: 0,
+        note: '检测到时间长期不推进（大量0秒占用/跳过循环）。请补齐“霸体时间”或调整排轴/前置条件。',
+      });
       break;
     }
   }
 
   if (guard >= 300000) {
-    events.push({ type: 'vacuum', start: Math.min(t, T), end: T, duration: Math.max(0, T - t), note: '触发安全退出：事件数过多。' });
+    events.push({
+      type: 'vacuum',
+      start: Math.min(t, T),
+      end: T,
+      duration: Math.max(0, T - t),
+      note: '触发安全退出：事件数过多。',
+    });
   }
 
   const merged = mergeVacuumAndSkips(events).filter((e) => e.end >= e.start - 1e-9);

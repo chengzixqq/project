@@ -1,32 +1,43 @@
-import { DB, state } from './state.js';
+import { getRulesForProfession, RELATION_TYPE, REQUIRED_SKILLS_BY_PROF } from '../data/rules.js';
+import { getKeysByNameAndSource, getKeysByNameExact, state } from './state.js';
 
-function relations() {
-  return DB?.rules?.relations || [];
+function getKeysByAliases(id, aliases = []) {
+  const out = new Set(getKeysByNameExact(id));
+  for (const alias of aliases) {
+    for (const key of getKeysByNameExact(alias)) out.add(key);
+  }
+  return [...out];
 }
 
-function mutexRules() {
-  return relations().filter((r) => r.relation_type === '互斥');
+export function getActiveRules(profession = state.prof) {
+  return getRulesForProfession(profession);
 }
 
 export function enforceRequiredSkills() {
-  // 现阶段不再硬编码“妙音必带”，保留函数以兼容调用方。
-  state.autoRequiredKeys = new Set();
+  const required = REQUIRED_SKILLS_BY_PROF[state.prof] || [];
+  for (const item of required) {
+    const keys = getKeysByAliases(item.id, item.aliases).filter((k) => state.skillIndex.get(k)?.source === state.prof);
+    keys.forEach((k) => state.selectedKeys.add(k));
+  }
 }
 
 export function isMiaoyinRequiredSkill(skill) {
-  return state.autoRequiredKeys.has(skill.key);
+  const required = REQUIRED_SKILLS_BY_PROF[state.prof] || [];
+  return required.some((item) => (item.aliases || [item.id]).includes(skill.name));
 }
 
 export function enforceMutualExclusion(changedSkill) {
-  const selected = state.selectedKeys;
-  for (const rule of mutexRules()) {
-    const a = rule.from_id;
-    const b = rule.to_id;
-    if (!(selected.has(a) && selected.has(b))) continue;
+  const rules = getActiveRules().filter((rule) => rule.relation_type === RELATION_TYPE.MUTEX);
+  for (const rule of rules) {
+    const source = rule.param?.source || null;
+    const fromKeys = source ? getKeysByNameAndSource(rule.from_id, source) : getKeysByNameExact(rule.from_id);
+    const toKeys = source ? getKeysByNameAndSource(rule.to_id, source) : getKeysByNameExact(rule.to_id);
+    const fromSelected = fromKeys.some((k) => state.selectedKeys.has(k));
+    const toSelected = toKeys.some((k) => state.selectedKeys.has(k));
+    if (!(fromSelected && toSelected)) continue;
 
-    if (changedSkill?.key === a) selected.delete(b);
-    else if (changedSkill?.key === b) selected.delete(a);
-    else selected.delete(b);
+    const keepFrom = changedSkill ? changedSkill.name === rule.from_id : true;
+    (keepFrom ? toKeys : fromKeys).forEach((k) => state.selectedKeys.delete(k));
   }
 }
 

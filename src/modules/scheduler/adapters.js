@@ -1,4 +1,4 @@
-import { DB } from '../../data/db.js';
+import { getRulesForProfession } from '../../data/rules.js';
 
 export function buildSchedulerInputFromState(state, options) {
   const { effectiveCd } = options;
@@ -24,7 +24,7 @@ export function buildSchedulerInputFromState(state, options) {
       profession: state.prof,
       woodChoice: state.woodChoice,
       deathThreshold: Number(state.deathThreshold) || 0,
-      relations: DB?.rules?.relations || [],
+      relations: getRulesForProfession(state.prof),
     },
     strategy: state.schedMode,
   };
