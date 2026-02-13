@@ -40,6 +40,36 @@ npx serve -l 5173
 
 当前仓库不需要编译，可以直接以静态站点方式运行。
 
+## 数据维护建议（Excel -> db.js）
+
+当前前端实际读取的是 `src/data/db.js`，该文件的 `meta.source_file` 指向 `逆水寒数据.xlsx`。建议把 Excel 当成**编辑源**，`db.js` 当成**发布产物**，统一按以下流程维护：
+
+1. 修改 `逆水寒数据.xlsx`。
+2. 导出（或更新）`src/data/db.js`。
+3. 运行数据校验脚本，避免重复名、负数、异常减伤值进入主分支。
+
+```bash
+node tools/check-db.mjs
+```
+
+脚本会检查：
+- 技能名是否缺失或重复（按职业/类别分桶）。
+- `cd/cast/duration/dmg_reduction` 是否为非负数字（或空值）。
+- `dmg_reduction` 是否超过 100。
+- `cast` 是否大于 `duration`（常见录入错误）。
+
+### 推荐的表结构优化点
+
+为后续扩展「群侠」以及更多职业，建议在 Excel 中补充这些字段（即使暂时为空，也先占位）：
+
+- `id`：稳定主键（避免技能重名导致后续 merge 冲突）。
+- `source_type`：`profession / ultimate / neigong / baijia / qunxia`。
+- `source_name`：职业名或类别名（例如 `妙音`、`绝技`）。
+- `enabled`：是否启用（用于暂存未实装技能而不删行）。
+- `version` 或 `patch`：记录技能参数对应版本。
+
+这样你后续做批量改表、跨职业比对、或自动生成差异日志会更轻松。
+
 ## GitHub Actions（云端检查与打包）
 
 仓库已提供 `.github/workflows/ci.yml`，作用：
