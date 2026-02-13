@@ -1,0 +1,192 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>逆水寒手游｜技能循环排轴工具（初版 v0.14）</title>
+    <link rel="stylesheet" href="./src/styles/main.css" />
+</head>
+<body>
+  <div class="wrap">
+    <h1>逆水寒手游｜技能循环排轴工具（初版 v0.14）</h1>
+    <div class="sub">
+      数据来源：本地 Excel（已内嵌）｜职业：<span class="mono">妙音</span>；通用：<span class="mono">绝技 / 内功 / 百家</span>。<br/>
+      口径：霸体为空/≤0按0秒；冷却期间不可再次施放；真空=按当前排轴策略无可施放技能。<br/>
+      木周天：仅影响<strong>职业技能</strong>有效冷却；3木特效仅由<strong>非内功</strong>技能施放触发（职业/绝技/百家均可触发），效果仅作用于职业技能冷却。<br/>妙音：<strong>逐月</strong> 与 <strong>逐月·乘风</strong> 为必带技能（解控），默认强制携带。<br/>
+      新增：排轴策略（严格/动态）；飞天联动限制；俯仰太虚联动限制；莲步盈华互斥选择。
+    </div>
+
+    <div class="stepper">
+      <span id="pill1" class="pill active">1. 选择模式</span>
+      <span id="pill2" class="pill">2. 选择职业</span>
+      <span id="pill3" class="pill">3. 选择技能</span>
+      <span id="pill4" class="pill">4. 排序</span>
+      <span id="pill5" class="pill">5. 结果</span>
+    </div>
+
+    <div id="step1" class="card">
+      <h2>Step 1｜选择游戏模式</h2>
+      <div class="grid2">
+        <div>
+          <label>游戏模式</label>
+          <select id="modeSelect"></select>
+        </div>
+        <div>
+          <label>模式时长（秒）</label>
+          <input id="modeDuration" type="number" min="1" step="1" />
+          <div class="muted" style="margin-top:6px; font-size:12px;">
+            默认：公平论武=120s；比武大会=180s。可手动覆盖。
+          </div>
+        </div>
+      </div>
+
+      <div style="margin-top:10px;">
+        <label>真空死亡阈值（秒）</label>
+        <input id="deathThreshold" type="number" min="0" step="0.1" value="3.0" />
+        <div class="muted" style="margin-top:6px; font-size:12px;">
+          单段真空持续时间 ≥ 该值即判定为“死亡真空”。设为 <span class="mono">0</span> 表示不启用。
+        </div>
+      </div>
+
+      <div class="btns">
+        <button class="primary" id="toStep2">下一步</button>
+      </div>
+    </div>
+
+    <div id="step2" class="card hidden">
+      <h2>Step 2｜选择职业（流派）</h2>
+      <div class="grid2">
+        <div>
+          <label>职业</label>
+          <select id="profSelect"></select>
+        </div>
+        <div>
+          <label>说明</label>
+          <div class="hint">
+            - 霸体为空/≤0：视为 <span class="mono">0s</span><br/>
+            - “动态排轴”：在无技能释放的时间点，会优先按顺序找可释放技能填充真空；“严格排轴”：只等当前轮到的技能（但遇到前置条件不满足会跳过）
+          </div>
+        </div>
+      </div>
+      <div class="btns">
+        <button id="back1">上一步</button>
+        <button class="primary" id="toStep3">下一步</button>
+      </div>
+    </div>
+
+    <div id="step3" class="card hidden">
+      <h2>Step 3｜选择你携带的技能</h2>
+
+      <div class="section" style="margin-bottom:12px;">
+        <h3>其他</h3>
+        <div class="subsec">
+          <h4>木周天</h4>
+          <div class="radioRow">
+            <label><input type="radio" name="wood" value="0" checked> 不选择（无影响）</label>
+            <label><input type="radio" name="wood" value="1"> 1木（职业技能冷却 -3%）</label>
+            <label><input type="radio" name="wood" value="2"> 2木（职业技能冷却 -4%）</label>
+            <label><input type="radio" name="wood" value="3"> 3木（职业技能冷却 -5% + 特效）</label>
+          </div>
+          <div class="muted" style="margin-top:8px; font-size:12px; line-height:1.6;">
+            3木特效口径：当“至少有 3 个职业技能处于冷却中”时，下一次施放<strong>非内功</strong>技能将使所有处于冷却状态的职业技能：剩余冷却降低40%，单技能最多减少5秒；该特效自身冷却20秒。
+          </div>
+        </div>
+      </div>
+
+      <div class="grid2">
+        <div>
+          <label>技能搜索（按名称）</label>
+          <input id="skillSearch" type="text" placeholder="输入关键字过滤（例如：飞天 / 莲心 / 逐月）" />
+        </div>
+        <div>
+          <label>快速操作</label>
+          <div class="btns" style="margin-top:0;">
+            <button id="selectAll">全选当前过滤结果</button>
+            <button class="danger" id="clearAll">清空全部选择</button>
+          </div>
+        </div>
+      </div>
+
+      <div id="hintMissingCast" class="hint hidden" style="margin-top:12px;"></div>
+      <div id="hintMissingCd" class="hint hidden" style="margin-top:12px;"></div>
+      <div id="hintExclusives" class="hint" style="margin-top:12px;">
+        互斥提示：<span class="mono">莲步盈华</span> 与 <span class="mono">莲步盈华·并蒂</span> 只能同时携带一个；<span class="mono">俯仰太虚</span> 与 <span class="mono">俯仰太虚·灵韵</span> 互斥；<span class="mono">纳百观</span> 与 <span class="mono">纳百观·灵韵</span> 互斥。<br/>妙音必带：<span class="mono">逐月</span>、<span class="mono">逐月·乘风</span>（解控，不可取消）。
+      </div>
+
+      <div id="skillContainer" class="skill-grid" style="margin-top:12px;"></div>
+
+      <div class="btns">
+        <button id="back2">上一步</button>
+        <button class="primary" id="toStep4">下一步（去排序）</button>
+      </div>
+    </div>
+
+    <div id="step4" class="card hidden">
+      <h2>Step 4｜手动排列技能顺序</h2>
+
+      <div class="section" style="margin-bottom:12px;">
+        <h3>排轴策略</h3>
+        <div class="radioRow">
+          <label><input type="radio" name="sched" value="strict" checked> 严格排轴（固定顺序；冷却未好则等待；前置条件不满足则跳过）</label>
+          <label><input type="radio" name="sched" value="dynamic"> 动态排轴（无技能释放时，按顺序优先释放已转好技能填充真空）</label>
+        </div>
+        <div class="muted" style="margin-top:8px; font-size:12px; line-height:1.6;">
+          动态排轴的优先级：从“当前排轴指针”开始，按你设置的顺序循环扫描，找到第一个“冷却已好 + 前置条件满足”的技能即释放。
+        </div>
+      </div>
+
+      <div class="muted" style="margin-bottom:10px; font-size:12px;">
+        支持拖拽排序；也可用 <span class="kbd">↑</span>/<span class="kbd">↓</span> 微调。
+      </div>
+
+      <div id="orderEmpty" class="warn hidden">你还没有选择任何技能。请返回上一步选择技能。</div>
+
+      <div id="orderList" class="order-list"></div>
+
+      <div class="btns">
+        <button id="back3">上一步</button>
+        <button class="primary" id="calc">生成排轴</button>
+      </div>
+    </div>
+
+    <div id="step5" class="card hidden">
+      <h2>Step 5｜排轴结果</h2>
+
+      <div id="summaryBox" class="ok" style="margin-bottom:12px;"></div>
+
+      <div class="btns" style="margin-top:0; margin-bottom:12px;">
+        <label style="display:inline-flex;align-items:center;gap:8px; padding: 8px 10px; border:1px solid var(--border); border-radius:12px; background: rgba(255,255,255,0.02);">
+          <input id="filterNoCast" type="checkbox" style="transform:scale(1.1);" />
+          <span>隐藏无霸体时间技能（霸体=0）</span>
+        </label>
+
+        <button id="copyText">复制文本结果</button>
+        <button id="exportCsv">导出 CSV</button>
+        <button id="restart">重新开始</button>
+      </div>
+
+      <div style="overflow:auto; border:1px solid var(--border); border-radius:12px;">
+        <table id="resultTable">
+          <thead>
+            <tr>
+              <th style="width:120px;">起始时间</th>
+              <th style="width:120px;">结束时间</th>
+              <th>动作</th>
+              <th style="width:140px;">来源</th>
+              <th style="width:140px;">霸体/占用</th>
+              <th style="width:140px;">冷却（有效）</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+
+      <div class="footerNote">
+        备注：当前只实现了少量“前置条件”规则（飞天/莲心/逐月/俯仰太虚）以及莲步互斥；其它连携/层数/资源未纳入。
+      </div>
+    </div>
+  </div>
+
+<script type="module" src="./src/main.js"></script>
+</body>
+</html>
