@@ -101,6 +101,12 @@
     .muted { color: var(--muted); }
     .hidden { display: none; }
     .footerNote { margin-top: 16px; color: var(--muted); font-size: 12px; line-height: 1.6; }
+    .visitStats {
+      text-align: center;
+      color: var(--muted);
+      font-size: 12px;
+      padding: 8px 16px 20px;
+    }
     .kbd {
       display:inline-block; padding: 1px 6px; border: 1px solid var(--border);
       border-radius: 6px; background: rgba(255,255,255,0.02);
