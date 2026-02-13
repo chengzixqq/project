@@ -114,7 +114,7 @@
       <div id="hintMissingCast" class="hint hidden" style="margin-top:12px;"></div>
       <div id="hintMissingCd" class="hint hidden" style="margin-top:12px;"></div>
       <div id="hintExclusives" class="hint" style="margin-top:12px;">
-        互斥提示：<span class="mono">莲步盈华</span> 与 <span class="mono">莲步盈华·并蒂</span> 只能同时携带一个；<span class="mono">俯仰太虚</span> 与 <span class="mono">俯仰太虚·灵韵</span> 互斥；<span class="mono">纳百观</span> 与 <span class="mono">纳百观·灵韵</span> 互斥。<br/>妙音必带：<span class="mono">逐月</span>、<span class="mono">逐月·乘风</span>（解控，不可取消）。
+        互斥提示：<span class="mono">莲步盈华</span> 与 <span class="mono">莲步盈华·并蒂</span> 只能同时携带一个；<span class="mono">俯仰太虚</span> 与 <span class="mono">俯仰太虚·灵韵</span> 互斥；<span class="mono">纳百观</span> 与 <span class="mono">纳百观·灵韵</span> 互斥。<br/>妙音必带：<span class="mono">逐月</span>、<span class="mono">逐月·乘风</span>（解控，不可取消）。<br/>交互优化：技能卡片可直接点击选择/取消，无需精确点小复选框。
       </div>
 
       <div id="skillContainer" class="skill-grid" style="margin-top:12px;"></div>
@@ -141,6 +141,11 @@
 
       <div class="muted" style="margin-bottom:10px; font-size:12px;">
         支持拖拽排序；也可用 <span class="kbd">↑</span>/<span class="kbd">↓</span> 微调。
+      </div>
+
+      <div class="btns" style="margin-top:0; margin-bottom:10px;">
+        <button id="sortCdAsc">按 CD 从短到长</button>
+        <button id="sortCdDesc">按 CD 从长到短</button>
       </div>
 
       <div id="orderEmpty" class="warn hidden">你还没有选择任何技能。请返回上一步选择技能。</div>
@@ -186,7 +191,7 @@
       </div>
 
       <div class="footerNote">
-        备注：当前只实现了少量“前置条件”规则（飞天/莲心/逐月/俯仰太虚）以及莲步互斥；其它连携/层数/资源未纳入。
+        备注：规则以当前数据源（Excel -> db.js）与内置规则表为准；如需扩展连携/层数/资源逻辑，请同步更新规则与校验脚本。
       </div>
     </div>
   </div>

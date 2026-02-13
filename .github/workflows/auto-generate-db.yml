@@ -12,8 +12,13 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: auto-generate-db-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   generate-db:
+    if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
 
     steps:
@@ -45,4 +50,5 @@ jobs:
 
           git add src/data/db.js
           git commit -m "chore(data): auto-generate db.js from excel"
-          git push
+          git pull --rebase origin "${GITHUB_REF_NAME}"
+          git push origin HEAD:"${GITHUB_REF_NAME}"

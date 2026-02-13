@@ -1,6 +1,6 @@
 export const DB = {
   "meta": {
-    "generated_at": "2026-02-13T22:44:10.527Z",
+    "generated_at": "2026-02-13T22:59:01.177Z",
     "source_file": "逆水寒数据.xlsx",
     "profession_sheets": [
       "妙音",
@@ -100,7 +100,7 @@ export const DB = {
           "cast": 1.5,
           "duration": 1.5,
           "dmg_reduction": null,
-          "note": "被动"
+          "note": null
         },
         {
           "name": "飞天",
@@ -116,7 +116,7 @@ export const DB = {
           "cast": 1,
           "duration": null,
           "dmg_reduction": 25,
-          "note": "被动"
+          "note": null
         },
         {
           "name": "莲步盈华",
@@ -146,6 +146,46 @@ export const DB = {
         },
         {
           "name": "落霞",
+          "cd": null,
+          "cast": null,
+          "duration": null,
+          "dmg_reduction": null,
+          "note": null
+        },
+        {
+          "name": "初绽",
+          "cd": null,
+          "cast": null,
+          "duration": null,
+          "dmg_reduction": null,
+          "note": null
+        },
+        {
+          "name": "约定",
+          "cd": null,
+          "cast": null,
+          "duration": null,
+          "dmg_reduction": null,
+          "note": null
+        },
+        {
+          "name": "风摇筝",
+          "cd": null,
+          "cast": null,
+          "duration": null,
+          "dmg_reduction": null,
+          "note": null
+        },
+        {
+          "name": "彩翼",
+          "cd": null,
+          "cast": null,
+          "duration": null,
+          "dmg_reduction": null,
+          "note": null
+        },
+        {
+          "name": "扶风",
           "cd": null,
           "cast": null,
           "duration": null,
@@ -325,7 +365,7 @@ export const DB = {
       "duration": 1.5,
       "cast": 1.5,
       "dmg_reduction": null,
-      "note": "被动"
+      "note": null
     },
     {
       "id": "妙音__飞天",
@@ -347,7 +387,7 @@ export const DB = {
       "duration": null,
       "cast": 1,
       "dmg_reduction": 25,
-      "note": "被动"
+      "note": null
     },
     {
       "id": "妙音__莲步盈华",
@@ -394,9 +434,9 @@ export const DB = {
       "note": null
     },
     {
-      "id": "初绽",
+      "id": "素心__初绽",
       "name": "初绽",
-      "source": null,
+      "source": "素心",
       "bucket": "职业技能",
       "cd": null,
       "duration": null,
@@ -405,9 +445,9 @@ export const DB = {
       "note": null
     },
     {
-      "id": "约定",
+      "id": "素心__约定",
       "name": "约定",
-      "source": null,
+      "source": "素心",
       "bucket": "职业技能",
       "cd": null,
       "duration": null,
@@ -416,9 +456,9 @@ export const DB = {
       "note": null
     },
     {
-      "id": "风摇筝",
+      "id": "素心__风摇筝",
       "name": "风摇筝",
-      "source": null,
+      "source": "素心",
       "bucket": "职业技能",
       "cd": null,
       "duration": null,
@@ -427,9 +467,9 @@ export const DB = {
       "note": null
     },
     {
-      "id": "彩翼",
+      "id": "素心__彩翼",
       "name": "彩翼",
-      "source": null,
+      "source": "素心",
       "bucket": "职业技能",
       "cd": null,
       "duration": null,
@@ -438,9 +478,9 @@ export const DB = {
       "note": null
     },
     {
-      "id": "扶风",
+      "id": "素心__扶风",
       "name": "扶风",
-      "source": null,
+      "source": "素心",
       "bucket": "职业技能",
       "cd": null,
       "duration": null,

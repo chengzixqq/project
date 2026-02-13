@@ -1,6 +1,6 @@
 import { buildSkillIndex, collectOrderedFromSelected, DB, effectiveCd, resetAll, state } from './modules/state.js';
 import { enforceMutualExclusion, enforceRequiredSkills } from './modules/rules.js';
-import { $, applyNoCastFilter, buildPlainText, exportCSV, prepareForOrderStep, renderModeOptions, renderOrderList, renderProfOptions, renderResults, renderSkillPicker, setActiveStep } from './modules/render.js';
+import { $, applyNoCastFilter, buildPlainText, exportCSV, prepareForOrderStep, renderModeOptions, renderOrderList, renderProfOptions, renderResults, renderSkillPicker, setActiveStep, sortOrderByCd } from './modules/render.js';
 import { generateSchedule } from './modules/scheduler/core.js';
 import { buildSchedulerInputFromState } from './modules/scheduler/adapters.js';
 
@@ -128,6 +128,16 @@ function init() {
 
   $('back3').addEventListener('click', () => goToStep(3));
   $('calc').addEventListener('click', calculateSchedule);
+
+  $('sortCdAsc')?.addEventListener('click', () => {
+    sortOrderByCd('asc');
+    renderOrderList();
+  });
+
+  $('sortCdDesc')?.addEventListener('click', () => {
+    sortOrderByCd('desc');
+    renderOrderList();
+  });
 
   $('copyText').addEventListener('click', async () => {
     const text = buildPlainText(applyNoCastFilter(state.events || []).events);

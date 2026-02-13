@@ -40,6 +40,13 @@ npx serve -l 5173
 
 当前仓库不需要编译，可以直接以静态站点方式运行。
 
+## 交互更新（近期）
+
+- Step 3 技能选择改为“整张技能卡片点击选择/取消”，选中态与必带态有明显高亮，避免小复选框难点的问题。
+- Step 4 新增两个快捷排序按钮：
+  - 按 CD 从短到长
+  - 按 CD 从长到短
+
 ## 数据维护流程（只维护 Excel，db.js 自动生成）
 
 `逆水寒数据.xlsx` 是**唯一维护源**，`src/data/db.js` 是构建产物。
@@ -63,24 +70,15 @@ npx serve -l 5173
 
 ### 云端自动生成（已支持）
 
-仓库新增 `.github/workflows/auto-generate-db.yml`：
+仓库内置 `.github/workflows/auto-generate-db.yml`：
 
-- 当 `逆水寒数据.xlsx`（或生成/校验脚本）发生变更并推送到仓库后，GitHub Actions 会自动：
-  1. 生成 `src/data/db.js`
-  2. 执行 `node tools/check-db.mjs` 校验
-  3. 若 `db.js` 有变更，自动提交回当前分支
-- 你只需要维护并上传 Excel，无需再手动更新 `db.js`。
+- 当 `逆水寒数据.xlsx`（或生成/校验脚本）更新并推送后，Actions 自动执行：
+  1. `node tools/build-db-from-xlsx.mjs`
+  2. `node tools/check-db.mjs`
+  3. 若 `src/data/db.js` 有变化，自动提交回当前分支
+- 已加入并发控制与 `github-actions[bot]` 触发保护，避免重复触发或冲突推送。
 
-### 服务器自动生成（备选）
-
-如果你希望**不回写仓库**，也可以在服务器部署脚本里加上：
-
-```bash
-node tools/build-db-from-xlsx.mjs
-node tools/check-db.mjs
-```
-
-这样会在每次部署时在服务器本地生成最新 `db.js`。
+你只需要维护并上传 Excel，无需手动改 `db.js`。
 
 ### `db.js` 新结构说明
 

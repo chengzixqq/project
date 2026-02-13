@@ -6,14 +6,6 @@ const zhuyueChengfengAliases = SKILL_NAME_ALIASES[SKILL_NAME.ZHUYUE_CHENGFENG] |
 const feitianLianxinAliases = SKILL_NAME_ALIASES[SKILL_NAME.FEITIAN_LIANXIN] || [SKILL_NAME.FEITIAN_LIANXIN];
 const fuyangTaixuLingyunAliases = SKILL_NAME_ALIASES[SKILL_NAME.FUYANG_TAIXU_LINGYUN] || [SKILL_NAME.FUYANG_TAIXU_LINGYUN];
 
-function withAliases(ruleId, ruleParam = {}) {
-  const aliases = [];
-  for (const key of ['aliases', 'target_aliases', 'anchor_aliases']) {
-    for (const item of (ruleParam[key] || [])) aliases.push(item);
-  }
-  return [ruleId, ...aliases];
-}
-
 function targetNameIn(name, id, param = {}) {
   const aliases = [...(param.aliases || []), ...(param.target_aliases || [])];
   return [id, ...aliases].includes(name);
@@ -48,7 +40,6 @@ function initCtx(relations) {
     casted: new Set(),
     sharedCooldownGroups,
     sharedDurationGroups,
-    replacementUntil: new Map(),
     durationSlots: new Map(),
     sharedCooldownAt: new Map(),
   };
