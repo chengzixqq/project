@@ -40,7 +40,10 @@ function init() {
     state.modeDuration = Number($('modeDuration').value) || state.modeDuration || 120;
     state.deathThreshold = Math.max(0, Number($('deathThreshold').value) || 0);
     state.woodChoice = getWoodChoice(); state.schedMode = getSchedMode();
-    state.events = generateSchedule(); if (!state.events.length) return;
+    const schedule = generateSchedule();
+    state.events = schedule.events;
+    state.stats = schedule.stats;
+    if (!state.events.length) return;
     renderResults(state.events); setActiveStep(5);
   });
 

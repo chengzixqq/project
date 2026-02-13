@@ -1,5 +1,6 @@
 import { effectiveCd, state } from './state.js';
 import { initCtx, onCastUpdateCtx, prereqOk } from './rules.js';
+import { summarizeEvents } from './scheduler/core.js';
 
 function mergeVacuumAndSkips(events) {
   const out = [];
@@ -33,13 +34,13 @@ const nextCastableTime = (skill, t, ctx, nextReady, zhuyueKey) => (!prereqOk(ski
 export function generateSchedule() {
   const T = Number(state.modeDuration);
   const order = state.orderedKeys.map((k) => state.skillIndex.get(k)).filter(Boolean);
-  if (!order.length || !(T > 0)) return [];
+  if (!order.length || !(T > 0)) return { events: [], stats: summarizeEvents([], T) };
 
   const profKeys = order.filter((s) => s.source === state.prof).map((s) => s.key);
   const traps = order.filter((s) => !((s.cast ?? 0) > 0) && !(effectiveCd(s) > 0));
   if (traps.length > 0) {
     alert(`存在“霸体=0 且 有效冷却=0”的技能，会导致排轴无限循环：\n${traps.map((s) => `${s.name}（${s.source}）`).join('\n')}\n请补齐冷却或取消选择。`);
-    return [];
+    return { events: [], stats: summarizeEvents([], T) };
   }
 
   const nextReady = {};
@@ -91,5 +92,6 @@ export function generateSchedule() {
     if (stagnantCount > order.length * 120) { events.push({ type: 'vacuum', start: t, end: Math.min(T, t), duration: 0, note: '检测到时间长期不推进（大量0秒占用/跳过循环）。请补齐“霸体时间”或调整排轴/前置条件。' }); break; }
   }
   if (guard >= 300000) events.push({ type: 'vacuum', start: Math.min(t, T), end: T, duration: Math.max(0, T - t), note: '触发安全退出：事件数过多。' });
-  return annotateDeath(mergeVacuumAndSkips(events), state.deathThreshold);
+  const finalEvents = annotateDeath(mergeVacuumAndSkips(events), state.deathThreshold);
+  return { events: finalEvents, stats: summarizeEvents(finalEvents, T) };
 }

@@ -69,9 +69,31 @@ export function applyNoCastFilter(events) { if (!isFilterNoCastOn()) return { ev
 export function renderResults(eventsAll) {
   const tbody = $('resultTable').querySelector('tbody'); tbody.innerHTML = '';
   const { events } = applyNoCastFilter(eventsAll);
-  let vacuum = 0; let skillCount = 0;
-  eventsAll.forEach((e) => { if (e.type === 'vacuum') vacuum += e.duration; if (e.type === 'skill') skillCount++; });
-  $('summaryBox').innerHTML = `模式：<b>${DB.modes.find((m) => m.id === state.modeId)?.name || state.modeId}</b> ｜ 时长：<b>${state.modeDuration}s</b> ｜ 施放次数：<b>${skillCount}</b> ｜ 真空总时长：<b>${fmt(vacuum)}s</b>`;
+  const stats = state.stats || {};
+  const modeName = DB.modes.find((m) => m.id === state.modeId)?.name || state.modeId;
+  const T = Number(state.modeDuration);
+  const schedLine = state.schedMode === 'dynamic' ? '动态' : '严格';
+  const vacuum = Number(stats.vacuum ?? 0);
+  const pct = Number(stats.vacuumPct ?? (T > 0 ? (vacuum / T) * 100 : 0));
+  const skillCount = Number(stats.skillCount ?? 0);
+  const skipCount = Number(stats.skipCount ?? 0);
+  const maxVac = Number(stats.maxVac ?? 0);
+  const deathCount = Number(stats.deathCount ?? 0);
+  const firstDeathStart = stats.firstDeathStart;
+  const wood3ProcCount = Number(stats.wood3ProcCount ?? 0);
+
+  const th = Number(state.deathThreshold) || 0;
+  const deathLine = (th > 0)
+    ? ` ｜ 死亡阈值：<b>${fmt(th)}s</b> ｜ 死亡真空段数：<b>${deathCount}</b>${deathCount ? `（首次：<b>${fmt(firstDeathStart)}s</b>）` : ''}`
+    : ' ｜ 死亡阈值：<b>未启用</b>';
+
+  const woodLine = (state.woodChoice === 0)
+    ? ' ｜ 木周天：<b>未选择</b>'
+    : ` ｜ 木周天：<b>${state.woodChoice}木</b>${state.woodChoice === 3 ? `（特效触发：<b>${wood3ProcCount}</b> 次）` : ''}`;
+
+  $('summaryBox').innerHTML =
+    `模式：<b>${modeName}</b> ｜ 时长：<b>${T}s</b> ｜ 排轴策略：<b>${schedLine}</b> ｜ 施放次数：<b>${skillCount}</b> ｜ 跳过次数：<b>${skipCount}</b> ｜ 真空总时长：<b>${fmt(vacuum)}s</b>（<b>${fmt(pct)}%</b>） ｜ 最大单段真空：<b>${fmt(maxVac)}s</b>${deathLine}${woodLine}<br/>`
+    + `顺序（循环优先级）：<span class="mono">${state.orderedKeys.map((k) => state.skillIndex.get(k)?.name).filter(Boolean).join(' → ')}</span>`;
   events.forEach((e) => {
     const tr = document.createElement('tr');
     tr.innerHTML = `<td class="mono">${fmt(e.start)}s</td><td class="mono">${fmt(e.end)}s</td><td>${e.type === 'skill' ? `<b>${e.name}</b>` : e.type === 'skip' ? `<b>跳过：${e.name}</b>` : '<b>真空</b>'}</td><td>${(e.type === 'skill' || e.type === 'skip') ? e.source : '-'}</td><td class="mono">${e.type === 'skill' ? `${fmt(e.cast)}s` : `${fmt(e.duration || 0)}s`}</td><td class="mono">${e.type === 'skill' ? `${fmt(e.cd)}s` : '-'}</td>`;
