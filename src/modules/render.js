@@ -36,6 +36,7 @@ export function renderSkillPicker() {
   const container = $('skillContainer'); container.innerHTML = '';
   const search = ($('skillSearch').value || '').trim().toLowerCase();
   const grouped = new Map();
+
   for (const s of state.skillIndex.values()) {
     if (search && !s.name.toLowerCase().includes(search)) continue;
     const bucket = s.bucket || '通用';
@@ -44,27 +45,79 @@ export function renderSkillPicker() {
     if (!grouped.has(groupKey)) grouped.set(groupKey, { bucket, src, skills: [] });
     grouped.get(groupKey).skills.push(s);
   }
-  if (!grouped.size) { const empty = document.createElement('div'); empty.className = 'warn'; empty.textContent = '没有匹配到技能（请清空搜索关键词或检查数据）。'; container.appendChild(empty); return; }
+
+  if (!grouped.size) {
+    const empty = document.createElement('div');
+    empty.className = 'warn';
+    empty.textContent = '没有匹配到技能（请清空搜索关键词或检查数据）。';
+    container.appendChild(empty);
+    return;
+  }
 
   for (const { bucket, src, skills: arr } of grouped.values()) {
     arr.sort((a, b) => a.name.localeCompare(b.name, 'zh-CN'));
     const sec = document.createElement('div'); sec.className = 'skill-section';
     const groupLabel = src && src !== bucket ? `${bucket}/${src}` : bucket;
     sec.innerHTML = `<h3>${groupLabel}（${arr.length}）</h3>`;
+
     const list = document.createElement('div'); list.className = 'skill-list';
     for (const s of arr) {
       const willLoopTrap = !((s.cast ?? 0) > 0) && !(effectiveCd(s) > 0);
-      const item = document.createElement('div'); item.className = `skill-item${willLoopTrap ? ' disabled' : ''}`;
-      const cb = document.createElement('input'); cb.type = 'checkbox';
-      const required = isMiaoyinRequiredSkill(s); if (required) state.selectedKeys.add(s.key);
-      cb.checked = state.selectedKeys.has(s.key); cb.disabled = willLoopTrap || required;
-      cb.addEventListener('change', () => { if (cb.checked) { state.selectedKeys.add(s.key); applyExclusiveOnSelect(s); } else state.selectedKeys.delete(s.key); renderSkillPicker(); });
+      const required = isMiaoyinRequiredSkill(s);
+      if (required) state.selectedKeys.add(s.key);
+
+      const isSelected = state.selectedKeys.has(s.key);
+      const item = document.createElement('button');
+      item.type = 'button';
+      item.className = `skill-item${isSelected ? ' selected' : ''}${willLoopTrap ? ' disabled' : ''}${required ? ' required' : ''}`;
+      item.disabled = willLoopTrap;
+      item.setAttribute('aria-pressed', isSelected ? 'true' : 'false');
+
+      const marker = document.createElement('span');
+      marker.className = `skill-marker${isSelected ? ' checked' : ''}`;
+      marker.textContent = isSelected ? '✓' : '';
+
       const meta = document.createElement('div');
-      meta.innerHTML = `<div><span>${s.name}</span><span class="badge">${src}</span></div><small>冷却：<span class="mono">${fmt(effectiveCd(s))}</span>s ｜ 霸体：<span class="mono">${(s.cast ?? 0) > 0 ? s.cast : 0}</span>s${s.note ? ` ｜ 备注：${s.note}` : ''}</small>`;
-      item.appendChild(cb); item.appendChild(meta); list.appendChild(item);
+      meta.className = 'skill-meta';
+      const statusLabel = required ? '<span class="badge blue">必带</span>' : '';
+      meta.innerHTML = `<div><span>${s.name}</span><span class="badge">${src}</span>${statusLabel}</div><small>冷却：<span class="mono">${fmt(effectiveCd(s))}</span>s ｜ 霸体：<span class="mono">${(s.cast ?? 0) > 0 ? s.cast : 0}</span>s${s.note ? ` ｜ 备注：${s.note}` : ''}</small>`;
+
+      item.appendChild(marker);
+      item.appendChild(meta);
+
+      if (!required && !willLoopTrap) {
+        item.addEventListener('click', () => {
+          if (state.selectedKeys.has(s.key)) state.selectedKeys.delete(s.key);
+          else {
+            state.selectedKeys.add(s.key);
+            applyExclusiveOnSelect(s);
+          }
+          renderSkillPicker();
+        });
+      }
+
+      list.appendChild(item);
     }
-    sec.appendChild(list); container.appendChild(sec);
+
+    sec.appendChild(list);
+    container.appendChild(sec);
   }
+}
+
+export function sortOrderByCd(direction = 'asc') {
+  if (!state.orderedKeys.length) return;
+  const sign = direction === 'desc' ? -1 : 1;
+  state.orderedKeys.sort((ka, kb) => {
+    const a = state.skillIndex.get(ka);
+    const b = state.skillIndex.get(kb);
+    const cdA = Number(effectiveCd(a) ?? 0);
+    const cdB = Number(effectiveCd(b) ?? 0);
+    if (cdA !== cdB) return (cdA - cdB) * sign;
+    const castA = Number(a?.cast ?? 0);
+    const castB = Number(b?.cast ?? 0);
+    if (castA !== castB) return (castA - castB) * sign;
+    return (a?.name || '').localeCompare((b?.name || ''), 'zh-CN');
+  });
 }
 
 export function renderOrderList() {

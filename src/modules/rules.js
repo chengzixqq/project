@@ -71,18 +71,19 @@ export function initCtx() {
 }
 
 function isZhuyueChengfeng(skill) {
-  if (skill.id) return skill.id === SKILL_ID.ZHUYUE_CHENGFENG;
-  return zhuyueChengfengAliases.includes(skill.name);
+  return skill?.id === SKILL_ID.ZHUYUE_CHENGFENG || zhuyueChengfengAliases.includes(skill?.name);
 }
 
 function isLianxin(skill) {
-  if (skill.id) return skill.id === SKILL_ID.FEITIAN_LIANXIN;
-  return feitianLianxinAliases.includes(skill.name);
+  return skill?.id === SKILL_ID.FEITIAN_LIANXIN || feitianLianxinAliases.includes(skill?.name);
 }
 
 function isFuyangTaixu(skill) {
-  if (skill.id) return skill.id === SKILL_ID.FUYANG_TAIXU || skill.id === SKILL_ID.FUYANG_TAIXU_LINGYUN;
-  return skill.name === SKILL_NAME.FUYANG_TAIXU || fuyangTaixuLingyunAliases.includes(skill.name);
+  const fuyangAliases = SKILL_NAME_ALIASES[SKILL_NAME.FUYANG_TAIXU] || [SKILL_NAME.FUYANG_TAIXU];
+  return skill?.id === SKILL_ID.FUYANG_TAIXU
+    || skill?.id === SKILL_ID.FUYANG_TAIXU_LINGYUN
+    || fuyangAliases.includes(skill?.name)
+    || fuyangTaixuLingyunAliases.includes(skill?.name);
 }
 
 export function prereqOk(skill, t, ctx, nextReady, zhuyueKey) {
@@ -104,7 +105,7 @@ export function prereqOk(skill, t, ctx, nextReady, zhuyueKey) {
 }
 
 export function onCastUpdateCtx(skill, t, ctx) {
-  if (skill.id ? skill.id === SKILL_ID.FEITIAN : skill.name === SKILL_NAME.FEITIAN) {
+  if (skill?.id === SKILL_ID.FEITIAN || (SKILL_NAME_ALIASES[SKILL_NAME.FEITIAN] || [SKILL_NAME.FEITIAN]).includes(skill?.name)) {
     ctx.lastFeitian = t;
     ctx.feitianWindowEnd = t + 20;
     ctx.lianxinUsed = false;
