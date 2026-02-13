@@ -11,6 +11,7 @@ export const state = {
   schedMode: 'strict',
   skillIndex: new Map(),
   selectedKeys: new Set(),
+  autoRequiredKeys: new Set(),
   orderedKeys: [],
   events: [],
   scheduleStats: null,
@@ -71,6 +72,7 @@ export function resetAll() {
   state.currentStep = 1;
   state.maxVisitedStep = 1;
   state.selectedKeys = new Set();
+  state.autoRequiredKeys = new Set();
   state.orderedKeys = [];
   state.events = [];
   state.scheduleStats = null;

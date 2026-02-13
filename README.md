@@ -40,35 +40,38 @@ npx serve -l 5173
 
 当前仓库不需要编译，可以直接以静态站点方式运行。
 
-## 数据维护建议（Excel -> db.js）
+## 数据维护流程（只维护 Excel，db.js 自动生成）
 
-当前前端实际读取的是 `src/data/db.js`，该文件的 `meta.source_file` 指向 `逆水寒数据.xlsx`。建议把 Excel 当成**编辑源**，`db.js` 当成**发布产物**，统一按以下流程维护：
+`逆水寒数据.xlsx` 是**唯一维护源**，`src/data/db.js` 是构建产物。
 
-1. 修改 `逆水寒数据.xlsx`。
-2. 导出（或更新）`src/data/db.js`。
-3. 运行数据校验脚本，避免重复名、负数、异常减伤值进入主分支。
+请不要手改 `src/data/db.js`，统一按下列流程：
 
-```bash
-node tools/check-db.mjs
-```
+1. 编辑 `逆水寒数据.xlsx`（职业技能 / 江湖技能 / 内功 / 机制）。
+2. 运行生成脚本：
 
-脚本会检查：
-- 技能名是否缺失或重复（按职业/类别分桶）。
-- `cd/cast/duration/dmg_reduction` 是否为非负数字（或空值）。
-- `dmg_reduction` 是否超过 100。
-- `cast` 是否大于 `duration`（常见录入错误）。
+   ```bash
+   node tools/build-db-from-xlsx.mjs
+   ```
 
-### 推荐的表结构优化点
+3. 运行校验脚本：
 
-为后续扩展「群侠」以及更多职业，建议在 Excel 中补充这些字段（即使暂时为空，也先占位）：
+   ```bash
+   node tools/check-db.mjs
+   ```
 
-- `id`：稳定主键（避免技能重名导致后续 merge 冲突）。
-- `source_type`：`profession / ultimate / neigong / baijia / qunxia`。
-- `source_name`：职业名或类别名（例如 `妙音`、`绝技`）。
-- `enabled`：是否启用（用于暂存未实装技能而不删行）。
-- `version` 或 `patch`：记录技能参数对应版本。
+### `db.js` 新结构说明
 
-这样你后续做批量改表、跨职业比对、或自动生成差异日志会更轻松。
+- `skills`：扁平数组，字段包括 `id/name/source/bucket/cd/duration/cast/dmg_reduction/note`。
+  - `bucket` 取值：`职业技能 | 江湖技能 | 内功`
+  - `cast` 来自 Excel 的“霸体时间”列
+- `rules`：由“机制”工作表生成
+- `meta.professions`：由“职业技能”表的“所属”去重生成
+- `meta.jianghu_categories`：由“江湖技能”表的“所属”去重生成（如绝技/百家/群侠）
+
+校验脚本会检查：
+- 顶层结构完整性（`meta/skills/rules`）
+- 技能 ID 唯一性、字段类型、负数与异常减伤值
+- `meta.professions`、`meta.jianghu_categories` 与技能数据的一致性
 
 ## GitHub Actions（云端检查与打包）
 
