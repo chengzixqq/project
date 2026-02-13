@@ -293,8 +293,337 @@
     </div>
   </div>
 
-<script>
+<script type="module">
+import { SCHED_MODE, SKILL_SOURCE, SKILL_NAME, SKILL_NAME_ALIASES, REQUIRED_SKILLS_MIAOYIN, EXCLUSIVE_RULES } from "./src/constants.js";
+
 const DB = {"meta": {"generated_at": "2026-02-13T02:40:59", "source_file": "逆水寒数据.xlsx", "universal_sheets": ["绝技", "内功", "百家"], "profession_sheets": ["妙音"]}, "modes": [{"id": "fair", "name": "公平论武", "duration": 120}, {"id": "tournament", "name": "比武大会", "duration": 180}], "skills": {"profession": {"妙音": [{"name": "飞泉", "cd": 7.0, "cast": null, "duration": null, "dmg_reduction": null, "note": null}, {"name": "九霄落影", "cd": 20.0, "cast": 1.7, "duration": 6.0, "dmg_reduction": null, "note": null}, {"name": "水月吟", "cd": 10.0, "cast": null, "duration": null, "dmg_reduction": null, "note": null}, {"name": "塞上曲", "cd": 14.0, "cast": null, "duration": 12.0, "dmg_reduction": null, "note": null}, {"name": "春霖", "cd": 16.0, "cast": null, "duration": 30.0, "dmg_reduction": null, "note": null}, {"name": "祈愿", "cd": 35.0, "cast": 4.5, "duration": 3.5, "dmg_reduction": 35.0, "note": null}, {"name": "比翼连枝", "cd": 30.0, "cast": null, "duration": 240.0, "dmg_reduction": null, "note": null}, {"name": "逐月", "cd": 18.0, "cast": 2.0, "duration": 2.0, "dmg_reduction": 25.0, "note": null}, {"name": "逐月·乘风", "cd": null, "cast": 1.5, "duration": 1.5, "dmg_reduction": null, "note": null}, {"name": "飞天", "cd": 45.0, "cast": 4.0, "duration": 20.0, "dmg_reduction": 25.0, "note": null}, {"name": "飞天·莲心", "cd": null, "cast": 1.0, "duration": 1.0, "dmg_reduction": 25.0, "note": null}, {"name": "莲步盈华", "cd": 90.0, "cast": 12.0, "duration": 12.0, "dmg_reduction": 100.0, "note": null}, {"name": "莲步盈华·并蒂", "cd": 60.0, "cast": 12.0, "duration": 12.0, "dmg_reduction": 100.0, "note": null}]}, "universal": {"绝技": [{"name": "净世莲华", "cd": 50, "cast": 4, "duration": 18, "dmg_reduction": null, "note": null}], "内功": [{"name": "不动明王·灵韵", "cd": 35, "cast": 2.0, "duration": 2, "dmg_reduction": 30, "note": null}, {"name": "俯仰太虚", "cd": 12, "cast": null, "duration": 3, "dmg_reduction": 15, "note": "减少流派解控技能冷却3秒"}, {"name": "俯仰太虚·灵韵", "cd": 12, "cast": null, "duration": 4, "dmg_reduction": 15, "note": "减少流派解控技能冷却4秒"}, {"name": "纳百观", "cd": 8, "cast": null, "duration": 6, "dmg_reduction": 4, "note": null}, {"name": "纳百观·灵韵", "cd": 8, "cast": null, "duration": 6, "dmg_reduction": 5, "note": null}], "百家": [{"name": "揽雀尾", "cd": 13, "cast": 3.5, "duration": 4, "dmg_reduction": 60.0, "note": null}, {"name": "凤绽朱华", "cd": 15, "cast": 1.25, "duration": 4, "dmg_reduction": null, "note": null}]}}};
+
+const EPS = 1e-12;
+
+function buildSchedulerInputFromState(state, options) {
+  const { effectiveCd } = options;
+  const modeDuration = Number(state.modeDuration);
+  const orderedSkills = state.orderedKeys
+    .map((key) => state.skillIndex.get(key))
+    .filter(Boolean)
+    .map((skill) => ({
+      key: skill.key,
+      name: skill.name,
+      source: skill.source,
+      cast: Math.max(0, Number(skill.cast ?? 0)),
+      cd: Number(effectiveCd(skill, state.prof, state.woodChoice) ?? 0),
+    }));
+
+  const zhuyueSkill = orderedSkills.find((skill) => skill.name === "逐月");
+
+  return {
+    modeDuration,
+    skills: orderedSkills,
+    rules: {
+      profession: state.prof,
+      woodChoice: state.woodChoice,
+      deathThreshold: Number(state.deathThreshold) || 0,
+      zhuyueKey: zhuyueSkill?.key || null,
+    },
+    strategy: state.schedMode,
+  };
+}
+
+function generateScheduleCore(input) {
+  const {
+    modeDuration,
+    skills,
+    rules,
+    strategy,
+  } = input;
+
+  const T = Number(modeDuration);
+  const order = Array.isArray(skills) ? skills.filter(Boolean) : [];
+  if (!order.length || !(T > 0)) {
+    const empty = [];
+    return { events: empty, stats: summarizeEventsInline(empty, T) };
+  }
+
+  const profKeys = order.filter((skill) => skill.source === rules.profession).map((skill) => skill.key);
+  const traps = order.filter((skill) => !((skill.cast ?? 0) > 0) && !((skill.cd ?? 0) > 0));
+  if (traps.length > 0) {
+    return {
+      events: [],
+      stats: summarizeEventsInline([], T),
+      error: `存在“霸体=0 且 有效冷却=0”的技能：${traps.map((skill) => `${skill.name}（${skill.source}）`).join("、")}`,
+    };
+  }
+
+  const nextReady = {};
+  const ctx = { lastFeitian: null, feitianWindowEnd: null, lianxinUsed: false };
+  const prereqOptions = {
+    profession: rules.profession,
+    zhuyueKey: rules.zhuyueKey || null,
+  };
+
+  const WOOD3_ICD = 20;
+  let wood3NextReady = 0;
+  let t = 0;
+  let idx = 0;
+  let guard = 0;
+  let stagnantCount = 0;
+  let lastT = t;
+  const events = [];
+
+  const prereqOk = (skill, now) => {
+    const name = skill.name;
+    const isZhuyueChengfeng = name === "逐月·乘风" || name === "逐月乘风" || name === "逐月.乘风" || name === "逐月 乘风";
+
+    if (name === "飞天·莲心" || isZhuyueChengfeng) {
+      if (ctx.lastFeitian === null || ctx.feitianWindowEnd === null) return false;
+      if (isZhuyueChengfeng && ctx.lianxinUsed) return false;
+      return now <= ctx.feitianWindowEnd + 1e-9;
+    }
+
+    const isFuyangTaixuLingyun = name === "俯仰太虚·灵韵" || name === "俯仰太虚灵韵" || name === "俯仰太虚.灵韵" || name === "俯仰太虚 灵韵";
+    if (name === "俯仰太虚" || isFuyangTaixuLingyun) {
+      if (prereqOptions.profession !== "妙音") return true;
+      if (!prereqOptions.zhuyueKey) return false;
+      const readyAt = nextReady[prereqOptions.zhuyueKey];
+      if (readyAt === undefined) return false;
+      return readyAt > now + EPS;
+    }
+
+    return true;
+  };
+
+  const countProfCooldown = (now) => {
+    let count = 0;
+    for (const key of profKeys) {
+      const readyAt = nextReady[key];
+      if (readyAt !== undefined && readyAt > now + EPS) count += 1;
+    }
+    return count;
+  };
+
+  const applyWood3Proc = (now) => {
+    for (const key of profKeys) {
+      const readyAt = nextReady[key];
+      if (readyAt === undefined || readyAt <= now + EPS) continue;
+      const remaining = readyAt - now;
+      const reduce = Math.min(remaining * 0.4, 5);
+      nextReady[key] = Math.max(now, readyAt - reduce);
+    }
+  };
+
+  const nextCastableTime = (skill, now) => {
+    if (!prereqOk(skill, now)) return Infinity;
+    return Math.max(now, nextReady[skill.key] ?? 0);
+  };
+
+  const doCast = (skill) => {
+    const cast = Math.max(0, Number(skill.cast ?? 0));
+    const cdEff = Number(skill.cd ?? 0);
+
+    let wood3Triggered = false;
+    if (rules.woodChoice === 3 && skill.source !== "内功" && t + EPS >= wood3NextReady) {
+      const cooldownCount = countProfCooldown(t);
+      if (cooldownCount >= 3) {
+        applyWood3Proc(t);
+        wood3NextReady = t + WOOD3_ICD;
+        wood3Triggered = true;
+      }
+    }
+
+    const end = Math.min(t + cast, T);
+    events.push({
+      type: "skill",
+      key: skill.key,
+      name: skill.name,
+      source: skill.source,
+      start: t,
+      end,
+      cast,
+      cd: cdEff,
+      wood3Triggered,
+    });
+
+    nextReady[skill.key] = t + cdEff;
+    if (skill.name === "飞天") {
+      ctx.lastFeitian = t;
+      ctx.feitianWindowEnd = t + 20;
+      ctx.lianxinUsed = false;
+    } else if (skill.name === "飞天·莲心") {
+      ctx.lianxinUsed = true;
+    }
+    t += cast;
+  };
+
+  while (t < T - 1e-9 && guard < 300000) {
+    guard += 1;
+
+    if (strategy === "strict") {
+      const skill = order[idx];
+      if (!prereqOk(skill, t)) {
+        events.push({
+          type: "skip",
+          start: t,
+          end: t,
+          name: skill.name,
+          source: skill.source,
+          reason: "前置条件不满足（飞天联动）",
+        });
+        idx = (idx + 1) % order.length;
+        continue;
+      }
+
+      const ready = nextReady[skill.key] ?? 0;
+      if (ready > t + EPS) {
+        const endVac = Math.min(ready, T);
+        events.push({ type: "vacuum", start: t, end: endVac, duration: endVac - t });
+        t = ready;
+        if (t >= T - 1e-9) break;
+      }
+
+      doCast(skill);
+      idx = (idx + 1) % order.length;
+    } else {
+      let found = -1;
+      for (let off = 0; off < order.length; off += 1) {
+        const skill = order[(idx + off) % order.length];
+        if (!prereqOk(skill, t)) continue;
+        const ready = nextReady[skill.key] ?? 0;
+        if (ready <= t + EPS) {
+          found = off;
+          break;
+        }
+      }
+
+      if (found >= 0) {
+        const skill = order[(idx + found) % order.length];
+        doCast(skill);
+        idx = (idx + found + 1) % order.length;
+      } else {
+        let nextT = Infinity;
+        for (const skill of order) {
+          const nt = nextCastableTime(skill, t);
+          if (nt < nextT) nextT = nt;
+        }
+
+        if (!Number.isFinite(nextT) || nextT <= t + EPS) {
+          events.push({
+            type: "vacuum",
+            start: t,
+            end: Math.min(T, t),
+            duration: 0,
+            note: "动态排轴无法推进：当前无可施放技能（可能因飞天联动前置未满足且无飞天可施放）。",
+          });
+          break;
+        }
+
+        const endVac = Math.min(nextT, T);
+        events.push({ type: "vacuum", start: t, end: endVac, duration: endVac - t });
+        t = nextT;
+      }
+    }
+
+    if (Math.abs(t - lastT) < EPS) stagnantCount += 1;
+    else {
+      stagnantCount = 0;
+      lastT = t;
+    }
+
+    if (stagnantCount > order.length * 120) {
+      events.push({
+        type: "vacuum",
+        start: t,
+        end: Math.min(T, t),
+        duration: 0,
+        note: "检测到时间长期不推进（大量0秒占用/跳过循环）。请补齐“霸体时间”或调整排轴/前置条件。",
+      });
+      break;
+    }
+  }
+
+  if (guard >= 300000) {
+    events.push({
+      type: "vacuum",
+      start: Math.min(t, T),
+      end: T,
+      duration: Math.max(0, T - t),
+      note: "触发安全退出：事件数过多。",
+    });
+  }
+
+  const merged = mergeVacuumAndSkipsInline(events);
+  const annotated = annotateDeathInline(merged, rules.deathThreshold);
+  return {
+    events: annotated,
+    stats: summarizeEventsInline(annotated, T),
+  };
+}
+
+function mergeVacuumAndSkipsInline(events) {
+  const out = [];
+  for (const event of events) {
+    if (event.type !== "vacuum") {
+      out.push(event);
+      continue;
+    }
+    const last = out[out.length - 1];
+    if (last && last.type === "vacuum" && Math.abs(last.end - event.start) < 1e-9) {
+      last.end = event.end;
+      last.duration += event.duration;
+    } else {
+      out.push({ ...event });
+    }
+  }
+  return out;
+}
+
+function annotateDeathInline(events, threshold) {
+  const th = Number(threshold) || 0;
+  if (!(th > 0)) return events.map((event) => ({ ...event, death: false }));
+  return events.map((event) => (event.type !== "vacuum"
+    ? { ...event, death: false }
+    : { ...event, death: event.duration >= th }));
+}
+
+function summarizeEventsInline(events, totalDuration) {
+  let vacuum = 0;
+  let maxVac = 0;
+  let deathCount = 0;
+  let firstDeathStart = null;
+  let skillCount = 0;
+  let skipCount = 0;
+  let wood3ProcCount = 0;
+
+  for (const event of events) {
+    if (event.type === "vacuum") {
+      vacuum += event.duration;
+      maxVac = Math.max(maxVac, event.duration);
+      if (event.death) {
+        deathCount += 1;
+        if (firstDeathStart === null || event.start < firstDeathStart) firstDeathStart = event.start;
+      }
+      continue;
+    }
+    if (event.type === "skill") {
+      skillCount += 1;
+      if (event.wood3Triggered) wood3ProcCount += 1;
+      continue;
+    }
+    if (event.type === "skip") skipCount += 1;
+  }
+
+  return {
+    totalDuration,
+    vacuum,
+    vacuumPct: totalDuration > 0 ? (vacuum / totalDuration) * 100 : 0,
+    maxVac,
+    deathCount,
+    firstDeathStart,
+    skillCount,
+    skipCount,
+    wood3ProcCount,
+  };
+}
+
 const $ = (id) => document.getElementById(id);
 
 function fmt(t) {
@@ -345,7 +674,7 @@ function effectiveCd(skill, profName, woodChoice) {
 
 function getSchedMode() {
   const checked = document.querySelector('input[name="sched"]:checked');
-  return checked ? checked.value : "strict";
+  return checked ? checked.value : SCHED_MODE.STRICT;
 }
 
 function renderModeOptions() {
@@ -383,11 +712,12 @@ let state = {
   deathThreshold: 3.0,
   prof: DB.meta.profession_sheets[0] || "",
   woodChoice: 0,
-  schedMode: "strict",
+  schedMode: SCHED_MODE.STRICT,
   skillIndex: new Map(),
   selectedKeys: new Set(),
   orderedKeys: [],
-  events: []
+  events: [],
+  scheduleStats: null
 };
 
 function getKeysByNameExact(name) {
@@ -406,23 +736,20 @@ function getKeysByNameAndSource(name, source) {
   return out;
 }
 function isMiaoyinRequiredSkill(s) {
-  if (!(state.prof === "妙音" && s.source === state.prof)) return false;
+  if (!(state.prof === SKILL_SOURCE.PROFESSION && s.source === state.prof)) return false;
   const nm = s.name;
-  if (nm === "逐月") return true;
-  if (nm === "飞天") return true;
-  if (nm === "逐月·乘风" || nm === "逐月乘风" || nm === "逐月.乘风" || nm === "逐月 乘风") return true;
-  if (nm === "飞天·莲心" || nm === "飞天莲心" || nm === "飞天.莲心" || nm === "飞天 莲心") return true;
+  if (SKILL_NAME_ALIASES[SKILL_NAME.ZHUYUE].includes(nm)) return true;
+  if (SKILL_NAME_ALIASES[SKILL_NAME.FEITIAN].includes(nm)) return true;
+  if (SKILL_NAME_ALIASES[SKILL_NAME.ZHUYUE_CHENGFENG].includes(nm)) return true;
+  if (SKILL_NAME_ALIASES[SKILL_NAME.FEITIAN_LIANXIN].includes(nm)) return true;
   return false;
 }
 function enforceRequiredSkills() {
-  if (state.prof !== "妙音") return;
+  if (state.prof !== SKILL_SOURCE.PROFESSION) return;
   // 妙音必带解控/关键技能：逐月、逐月·乘风、飞天、飞天·莲心（兼容若干写法；若数据表尚未包含则不报错）
-  const needs = [
-    {alts:["逐月"]},
-    {alts:["逐月·乘风","逐月乘风","逐月.乘风","逐月 乘风"]},
-    {alts:["飞天"]},
-    {alts:["飞天·莲心","飞天莲心","飞天.莲心","飞天 莲心"]}
-  ];
+  const needs = REQUIRED_SKILLS_MIAOYIN.map(name => ({
+    alts: SKILL_NAME_ALIASES[name] || [name]
+  }));
   for (const item of needs) {
     for (const nm of item.alts) {
       const ks = getKeysByNameAndSource(nm, state.prof);
@@ -436,11 +763,7 @@ function enforceRequiredSkills() {
 
 function enforceMutualExclusion() {
   // 互斥规则：若同时选中，默认优先保留前者（A），取消后者（B）
-  const rules = [
-    {a:"莲步盈华", b:"莲步盈华·并蒂", source:null},         // 不限定来源
-    {a:"俯仰太虚", b:"俯仰太虚·灵韵", source:"内功"},       // 仅内功表互斥
-    {a:"纳百观", b:"纳百观·灵韵", source:"内功"}            // 仅内功表互斥
-  ];
+  const rules = EXCLUSIVE_RULES; // 互斥规则集中在常量文件维护
   for (const r of rules) {
     const aKeys = (r.source ? getKeysByNameAndSource(r.a, r.source) : getKeysByNameExact(r.a));
     const bKeys = (r.source ? getKeysByNameAndSource(r.b, r.source) : getKeysByNameExact(r.b));
@@ -454,11 +777,7 @@ function enforceMutualExclusion() {
 
 function applyExclusiveOnSelect(skill) {
   // 当勾选某项时，自动取消其互斥项（按“当前勾选优先”的口径）
-  const rules = [
-    {a:"莲步盈华", b:"莲步盈华·并蒂", source:null},
-    {a:"俯仰太虚", b:"俯仰太虚·灵韵", source:"内功"},
-    {a:"纳百观", b:"纳百观·灵韵", source:"内功"}
-  ];
+  const rules = EXCLUSIVE_RULES;
   for (const r of rules) {
     const matchSource = (r.source === null) || (skill.source === r.source);
     if (!matchSource) continue;
@@ -476,8 +795,7 @@ function renderSkillPicker() {
   const prof = state.prof;
   state.skillIndex = buildSkillIndex(prof);
 
-  // 妙音必带：逐月、逐月·乘风
-  enforceRequiredSkills();
+  RuleEngine.applyRequiredSkills(state);
 
   const container = $("skillContainer");
   container.innerHTML = "";
@@ -525,7 +843,7 @@ function renderSkillPicker() {
     return;
   }
 
-  enforceMutualExclusion();
+  RuleEngine.applyMutualExclusions(state);
 
   for (const [src, arr] of grouped.entries()) {
     arr.sort((a,b)=>a.name.localeCompare(b.name, "zh-CN"));
@@ -549,7 +867,7 @@ function renderSkillPicker() {
 
       const cb = document.createElement("input");
       cb.type = "checkbox";
-      const required = isMiaoyinRequiredSkill(s);
+      const required = RuleEngine.isRequiredSkill(state, s);
       if (required) state.selectedKeys.add(s.key);
       cb.checked = state.selectedKeys.has(s.key);
       cb.disabled = willLoopTrap || required;
@@ -557,7 +875,7 @@ function renderSkillPicker() {
       cb.addEventListener("change", () => {
         if (cb.checked) {
           state.selectedKeys.add(s.key);
-          applyExclusiveOnSelect(s);
+          RuleEngine.applyMutualExclusions(state, s);
         } else {
           state.selectedKeys.delete(s.key);
         }
@@ -574,7 +892,7 @@ function renderSkillPicker() {
         ? `冷却：<span class="mono">${fmt(baseCd)}</span>s → <span class="mono">${fmt(effCd)}</span>s`
         : `冷却：<span class="mono">${fmt(baseCd)}</span>s`;
 
-      const extra = (s.source === "内功") ? ` ｜ <span class="muted">内功：不触发3木特效</span>` : "";
+      const extra = (s.source === SKILL_SOURCE.NEIGONG) ? ` ｜ <span class="muted">内功：不触发3木特效</span>` : "";
 
       info.innerHTML = `${cdText} ｜ 霸体：<span class="mono">${(cast>0)?cast:0}</span>s` +
         (willLoopTrap ? ` ｜ <span style="color:#ffd9d9;">不可选：0有效CD+0霸体会死循环</span>` : "") +
@@ -688,7 +1006,7 @@ function renderOrderList() {
     const del = document.createElement("button");
     del.textContent = "移除";
     del.className = "danger";
-    const required = isMiaoyinRequiredSkill(s);
+    const required = RuleEngine.isRequiredSkill(state, s);
     if (required) {
       del.disabled = true;
       del.title = "妙音必带解控：不可移除";
@@ -738,20 +1056,20 @@ function annotateDeath(events, threshold) {
 function initCtx() {
   return { lastFeitian: null, feitianWindowEnd: null, lianxinUsed: false };
 }
-function isFeitian(n) { return n === "飞天"; }
-function isLianxin(n) { return n === "飞天·莲心"; }
+function isFeitian(n) { return n === SKILL_NAME.FEITIAN; }
+function isLianxin(n) { return SKILL_NAME_ALIASES[SKILL_NAME.FEITIAN_LIANXIN].includes(n); }
 function isZhuyue(nm) {
-  return nm === "逐月";
+  return SKILL_NAME_ALIASES[SKILL_NAME.ZHUYUE].includes(nm);
 }
 function isZhuyueChengfeng(nm) {
   // 与“逐月”是不同技能
-  return nm === "逐月·乘风" || nm === "逐月乘风" || nm === "逐月.乘风" || nm === "逐月 乘风";
+  return SKILL_NAME_ALIASES[SKILL_NAME.ZHUYUE_CHENGFENG].includes(nm);
 }
 function isFuyangTaixu(nm) {
-  return nm === "俯仰太虚";
+  return SKILL_NAME_ALIASES[SKILL_NAME.FUYANG_TAIXU].includes(nm);
 }
 function isFuyangTaixuLingyun(nm) {
-  return nm === "俯仰太虚·灵韵" || nm === "俯仰太虚灵韵" || nm === "俯仰太虚.灵韵" || nm === "俯仰太虚 灵韵";
+  return SKILL_NAME_ALIASES[SKILL_NAME.FUYANG_TAIXU_LINGYUN].includes(nm);
 }
 
 function prereqOk(skill, t, ctx, nextReady, zhuyueKey) {
@@ -773,7 +1091,7 @@ function prereqOk(skill, t, ctx, nextReady, zhuyueKey) {
   // 俯仰太虚 / 俯仰太虚·灵韵：只能在“逐月”的冷却时间内触发
   if (isFuyangTaixu(nm) || isFuyangTaixuLingyun(nm)) {
     // 仅对妙音做逐月冷却窗口限制（其他职业数据未定义，默认不限制）
-    if (state.prof !== "妙音") return true;
+    if (state.prof !== SKILL_SOURCE.PROFESSION) return true;
     if (!zhuyueKey) return false; // 未携带“逐月”则不可用（与“逐月·乘风”无关）
     const zyReady = (nextReady && nextReady[zhuyueKey] !== undefined) ? nextReady[zhuyueKey] : undefined;
     if (zyReady === undefined) return false; // 对应“逐月”技能从未释放过，则不处于冷却窗口
@@ -815,34 +1133,31 @@ function applyWood3Proc(nextReady, profKeys, t) {
 }
 
 function canTriggerWood3ByCast(skill) {
-  return skill.source !== "内功";
+  return skill.source !== SKILL_SOURCE.NEIGONG;
 }
 
-function nextCastableTime(skill, t, ctx, nextReady, zhuyueKey) {
-  if (!prereqOk(skill, t, ctx, nextReady, zhuyueKey)) return Infinity;
+function nextCastableTime(skill, t, ctx, nextReady, referenceKeys) {
+  const res = RuleEngine.checkPrerequisite(skill, {
+    prof: state.prof,
+    time: t,
+    combo: ctx.combo,
+    nextReady,
+    referenceKeys
+  });
+  if (!res.ok) return Infinity;
   return Math.max(t, (nextReady[skill.key] ?? 0));
 }
 
 function generateSchedule() {
-  const T = Number(state.modeDuration);
-  const order = state.orderedKeys.map(k => state.skillIndex.get(k)).filter(Boolean);
-  if (!order.length || !(T > 0)) return [];
-
-  const prof = state.prof;
-  const wood = state.woodChoice;
-  const mode = state.schedMode;
-
-  const profKeys = order.filter(s=>s.source===prof).map(s=>s.key);
-
-  const traps = order.filter(s => !((s.cast ?? 0) > 0) && !(effectiveCd(s, prof, wood) > 0));
-  if (traps.length > 0) {
-    alert("存在“霸体=0 且 有效冷却=0”的技能，会导致排轴无限循环：\n" + traps.map(s=>s.name + "（" + s.source + "）").join("\n") + "\n请补齐冷却或取消选择。");
-    return [];
+  const input = buildSchedulerInputFromState(state, { effectiveCd });
+  const result = generateScheduleCore(input);
+  if (result.error) {
+    alert(result.error);
+    return { events: [], stats: result.stats };
   }
 
   const nextReady = {};
   let wood3NextReady = 0;
-  const WOOD3_ICD = 20.0;
 
   let t = 0;
   let idx = 0;
@@ -856,12 +1171,11 @@ function generateSchedule() {
   // 用于“俯仰太虚/灵韵”前置判定：逐月（优先）/逐月（兜底）的 key（必须在本次选择中存在）
   const zhuyueKey = (function() {
     // 俯仰太虚联动：仅对“妙音”生效，且仅绑定“逐月”（与“逐月·乘风”是不同技能）
-    if (prof !== "妙音") return null;
+    if (prof !== SKILL_SOURCE.PROFESSION) return null;
     for (const s of order) {
-      if (s && s.name === "逐月") return s.key;
+      if (s && s.name === SKILL_NAME.ZHUYUE) return s.key;
     }
-    return null;
-  })();
+  }
 
 
   function doCast(skill) {
@@ -870,13 +1184,19 @@ function generateSchedule() {
     const cdEff = effectiveCd(skill, prof, wood);
 
     let wood3Triggered = false;
-    if (wood === 3 && canTriggerWood3ByCast(skill) && t + 1e-12 >= wood3NextReady) {
-      const cnt = countProfCooldown(nextReady, profKeys, t);
-      if (cnt >= 3) {
-        applyWood3Proc(nextReady, profKeys, t);
-        wood3NextReady = t + WOOD3_ICD;
-        wood3Triggered = true;
-      }
+    const specialRes = RuleEngine.applySpecialEffects({
+      name: skill.name,
+      source: skill.source
+    }, {
+      time: t,
+      woodChoice: wood,
+      wood3NextReady,
+      nextReady,
+      profKeys
+    });
+    if (specialRes.appliedRuleIds.length > 0) {
+      wood3Triggered = true;
+      wood3NextReady = specialRes.wood3NextReady || wood3NextReady;
     }
 
     const end = Math.min(t + cast, T);
@@ -893,23 +1213,24 @@ function generateSchedule() {
     });
 
     nextReady[skill.key] = t + cdEff;
-    onCastUpdateCtx(skill, t, ctx);
+    RuleEngine.updateCastContext(skill, t, ctx);
     t += cast;
   }
 
   while (t < T - 1e-9 && guard < 300000) {
     guard++;
 
-    if (mode === "strict") {
+    if (mode === SCHED_MODE.STRICT) {
       const s = order[idx];
 
-      if (!prereqOk(s, t, ctx, nextReady, zhuyueKey)) {
+      const preCheck = RuleEngine.checkPrerequisite(s, { prof: state.prof, time: t, combo: ctx.combo, nextReady, referenceKeys });
+      if (!preCheck.ok) {
         events.push({
           type: "skip",
           start: t, end: t,
           name: s.name,
           source: s.source,
-          reason: "前置条件不满足（飞天联动）"
+          reason: `前置条件不满足（${preCheck.ruleId || "UNKNOWN_RULE"}）`
         });
         idx = (idx + 1) % order.length;
         continue;
@@ -930,7 +1251,8 @@ function generateSchedule() {
       let found = -1;
       for (let off = 0; off < order.length; off++) {
         const s = order[(idx + off) % order.length];
-        if (!prereqOk(s, t, ctx, nextReady, zhuyueKey)) continue;
+        const preCheck = RuleEngine.checkPrerequisite(s, { prof: state.prof, time: t, combo: ctx.combo, nextReady, referenceKeys });
+        if (!preCheck.ok) continue;
         const ready = (nextReady[s.key] ?? 0);
         if (ready <= t + 1e-12) { found = off; break; }
       }
@@ -942,7 +1264,7 @@ function generateSchedule() {
       } else {
         let nextT = Infinity;
         for (const s of order) {
-          const nt = nextCastableTime(s, t, ctx, nextReady, zhuyueKey);
+          const nt = nextCastableTime(s, t, ctx, nextReady, referenceKeys);
           if (nt < nextT) nextT = nt;
         }
         if (!isFinite(nextT) || nextT <= t + 1e-12) {
@@ -987,7 +1309,7 @@ function applyNoCastFilter(events) {
   return {events: filtered, hidden};
 }
 
-function renderResults(eventsAll) {
+function renderResults(eventsAll, stats) {
   const tbody = $("resultTable").querySelector("tbody");
   tbody.innerHTML = "";
   const filteredPack = applyNoCastFilter(eventsAll);
@@ -996,28 +1318,8 @@ function renderResults(eventsAll) {
 
 
   const T = Number(state.modeDuration);
-  let vacuum=0, skillCount=0, deathCount=0, maxVac=0;
-  let firstDeathStart=null;
-  let wood3ProcCount=0;
-  let skipCount=0;
-
-  for (const e of eventsAll) {
-    if (e.type === "vacuum") {
-      vacuum += e.duration;
-      maxVac = Math.max(maxVac, e.duration);
-      if (e.death) {
-        deathCount++;
-        if (firstDeathStart === null || e.start < firstDeathStart) firstDeathStart = e.start;
-      }
-    } else if (e.type === "skill") {
-      skillCount++;
-      if (e.wood3Triggered) wood3ProcCount++;
-    } else if (e.type === "skip") {
-      skipCount++;
-    }
-  }
-
-  const pct = T > 0 ? (vacuum / T * 100) : 0;
+  const computedStats = stats || { totalDuration: T, vacuum: 0, vacuumPct: 0, maxVac: 0, deathCount: 0, firstDeathStart: null, skillCount: 0, skipCount: 0, wood3ProcCount: 0 };
+  const { vacuum, vacuumPct: pct, maxVac, deathCount, firstDeathStart, skillCount, skipCount, wood3ProcCount } = computedStats;
   const modeName = DB.modes.find(m=>m.id===state.modeId)?.name || state.modeId;
 
   const th = Number(state.deathThreshold) || 0;
@@ -1029,12 +1331,12 @@ function renderResults(eventsAll) {
   const woodLine = (woodChoice === 0) ? ` ｜ 木周天：<b>未选择</b>` :
     ` ｜ 木周天：<b>${woodChoice}木</b>` + (woodChoice===3 ? `（特效触发：<b>${wood3ProcCount}</b> 次）` : "");
 
-  const schedLine = state.schedMode === "dynamic" ? "动态" : "严格";
+  const schedLine = state.schedMode === SCHED_MODE.DYNAMIC ? "动态" : "严格";
 
     const filterLine = isFilterNoCastOn() ? ` ｜ 已隐藏无霸体技能：<b>${fmt(hiddenNoCast)}</b> 条` : ``;
 
   $("summaryBox").innerHTML =
-    `模式：<b>${modeName}</b> ｜ 时长：<b>${T}s</b> ｜ 排轴策略：<b>${schedLine}</b> ｜ 施放次数：<b>${skillCount}</b> ｜ 跳过次数：<b>${skipCount}</b> ｜ 真空总时长：<b>${fmt(vacuum)}s</b>（<b>${fmt(pct)}%</b>） ｜ 最大单段真空：<b>${fmt(maxVac)}s</b>${deathLine}${woodLine}<br/>` +
+    `模式：<b>${modeName}</b> ｜ 时长：<b>${T}s</b> ｜ 排轴策略：<b>${schedLine}</b> ｜ 施放次数：<b>${skillCount}</b> ｜ 跳过次数：<b>${skipCount}</b> ｜ 真空总时长：<b>${fmt(vacuum)}s</b>（<b>${fmt(pct)}%</b>） ｜ 最大单段真空：<b>${fmt(maxVac)}s</b>${deathLine}${woodLine}${filterLine}<br/>` +
     `顺序（循环优先级）：<span class="mono">${state.orderedKeys.map(k=>state.skillIndex.get(k)?.name).filter(Boolean).join(" → ")}</span>`;
 
   for (const e of events) {
@@ -1136,6 +1438,7 @@ function resetAll() {
   state.selectedKeys = new Set();
   state.orderedKeys = [];
   state.events = [];
+  state.scheduleStats = null;
   $("skillSearch").value = "";
   renderSkillPicker();
 }
@@ -1145,7 +1448,7 @@ function init() {
   const filterEl = $("filterNoCast");
   if (filterEl) {
     filterEl.addEventListener("change", ()=> {
-      if (state.events && state.events.length) renderResults(state.events);
+      if (state.events && state.events.length) renderResults(state.events, state.scheduleStats);
     });
   }
 
@@ -1200,7 +1503,7 @@ function init() {
       if (search && !s.name.toLowerCase().includes(search)) continue;
       state.selectedKeys.add(s.key);
     }
-    enforceMutualExclusion();
+    RuleEngine.applyMutualExclusions(state);
     renderSkillPicker();
   });
 
@@ -1208,14 +1511,14 @@ function init() {
     state.selectedKeys.clear();
     state.orderedKeys = [];
     // 清空后仍保留妙音必带
-    enforceRequiredSkills();
+    RuleEngine.applyRequiredSkills(state);
     renderSkillPicker();
   });
 
   $("toStep4").addEventListener("click", ()=> {
     state.skillIndex = buildSkillIndex(state.prof);
     // 进入排序前再次确保妙音必带已加入选择
-    enforceRequiredSkills();
+    RuleEngine.applyRequiredSkills(state);
     collectOrderedFromSelected();
     renderOrderList();
     setActiveStep(4);
@@ -1225,7 +1528,7 @@ function init() {
 
   $("calc").addEventListener("click", ()=> {
     // 生成前再次确保妙音必带存在
-    enforceRequiredSkills();
+    RuleEngine.applyRequiredSkills(state);
     collectOrderedFromSelected();
     if (!state.orderedKeys.length) { renderOrderList(); return; }
     state.modeDuration = Number($("modeDuration").value) || state.modeDuration || 120;
@@ -1234,9 +1537,11 @@ function init() {
     state.woodChoice = getWoodChoice();
     state.schedMode = getSchedMode();
 
-    state.events = generateSchedule();
+    const scheduleResult = generateSchedule();
+    state.events = scheduleResult.events;
+    state.scheduleStats = scheduleResult.stats;
     if (!state.events.length) return;
-    renderResults(state.events);
+    renderResults(state.events, state.scheduleStats);
     setActiveStep(5);
   });
 

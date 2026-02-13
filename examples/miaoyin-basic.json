@@ -1,0 +1,16 @@
+{
+  "modeDuration": 120,
+  "skills": [
+    { "key": "妙音::飞天", "name": "飞天", "source": "妙音", "cast": 4, "cd": 42.75 },
+    { "key": "妙音::飞天·莲心", "name": "飞天·莲心", "source": "妙音", "cast": 1, "cd": 0 },
+    { "key": "妙音::逐月", "name": "逐月", "source": "妙音", "cast": 2, "cd": 17.1 },
+    { "key": "妙音::俯仰太虚", "name": "俯仰太虚", "source": "内功", "cast": 0, "cd": 12 }
+  ],
+  "rules": {
+    "profession": "妙音",
+    "woodChoice": 1,
+    "deathThreshold": 3,
+    "zhuyueKey": "妙音::逐月"
+  },
+  "strategy": "dynamic"
+}
