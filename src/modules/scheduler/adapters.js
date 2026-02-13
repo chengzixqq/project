@@ -1,3 +1,5 @@
+import { getRulesForProfession } from '../../data/rules.js';
+
 export function buildSchedulerInputFromState(state, options) {
   const {
     effectiveCd,
@@ -15,8 +17,6 @@ export function buildSchedulerInputFromState(state, options) {
       cd: Number(effectiveCd(skill, state.prof, state.woodChoice) ?? 0),
     }));
 
-  const zhuyueSkill = orderedSkills.find((skill) => skill.name === "逐月");
-
   return {
     modeDuration,
     skills: orderedSkills,
@@ -24,7 +24,7 @@ export function buildSchedulerInputFromState(state, options) {
       profession: state.prof,
       woodChoice: state.woodChoice,
       deathThreshold: Number(state.deathThreshold) || 0,
-      zhuyueKey: zhuyueSkill?.key || null,
+      relations: getRulesForProfession(state.prof),
     },
     strategy: state.schedMode,
   };
