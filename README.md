@@ -44,7 +44,9 @@ npx serve -l 5173
 
 `逆水寒数据.xlsx` 是**唯一维护源**，`src/data/db.js` 是构建产物。
 
-请不要手改 `src/data/db.js`，统一按下列流程：
+### 本地手动生成（可选）
+
+请不要手改 `src/data/db.js`，本地需要预检时按下列流程：
 
 1. 编辑 `逆水寒数据.xlsx`（职业技能 / 江湖技能 / 内功 / 机制）。
 2. 运行生成脚本：
@@ -58,6 +60,27 @@ npx serve -l 5173
    ```bash
    node tools/check-db.mjs
    ```
+
+### 云端自动生成（已支持）
+
+仓库新增 `.github/workflows/auto-generate-db.yml`：
+
+- 当 `逆水寒数据.xlsx`（或生成/校验脚本）发生变更并推送到仓库后，GitHub Actions 会自动：
+  1. 生成 `src/data/db.js`
+  2. 执行 `node tools/check-db.mjs` 校验
+  3. 若 `db.js` 有变更，自动提交回当前分支
+- 你只需要维护并上传 Excel，无需再手动更新 `db.js`。
+
+### 服务器自动生成（备选）
+
+如果你希望**不回写仓库**，也可以在服务器部署脚本里加上：
+
+```bash
+node tools/build-db-from-xlsx.mjs
+node tools/check-db.mjs
+```
+
+这样会在每次部署时在服务器本地生成最新 `db.js`。
 
 ### `db.js` 新结构说明
 

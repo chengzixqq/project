@@ -1,12 +1,14 @@
 import { DB } from '../data/db.js';
 
+const initialProfessions = DB.meta?.professions || DB.meta?.profession_sheets || [];
+
 export const state = {
   currentStep: 1,
   maxVisitedStep: 1,
   modeId: DB.modes[0].id,
   modeDuration: DB.modes[0].duration,
   deathThreshold: 3.0,
-  prof: DB.meta.profession_sheets[0] || '',
+  prof: initialProfessions[0] || '',
   woodChoice: 0,
   schedMode: 'strict',
   skillIndex: new Map(),
@@ -39,6 +41,12 @@ function mapUniversalCategory(cat) {
 export function getProfessionOptions() {
   const options = new Set();
 
+  if (Array.isArray(DB.skills)) {
+    DB.skills.forEach((s) => {
+      if (s?.bucket === '职业技能' && s?.source) options.add(s.source);
+    });
+  }
+
   if (DB.skills?.profession && typeof DB.skills.profession === 'object') {
     Object.keys(DB.skills.profession).forEach((name) => name && options.add(name));
   }
@@ -51,7 +59,9 @@ export function getProfessionOptions() {
     });
   }
 
+  (DB.meta?.professions || []).forEach((name) => name && options.add(name));
   (DB.meta?.profession_sheets || []).forEach((name) => name && options.add(name));
+
   return [...options];
 }
 
@@ -59,6 +69,19 @@ function collectSkillsByScope(profName) {
   const prof = [];
   const jianghu = [];
   const neigong = [];
+
+  if (Array.isArray(DB.skills)) {
+    DB.skills.forEach((s) => {
+      if (!s?.name) return;
+      if (s.bucket === '职业技能') {
+        if (s.source === profName) prof.push(normalizeSkill(s, '职业技能', profName));
+      } else if (s.bucket === '江湖技能') {
+        jianghu.push(normalizeSkill(s, '江湖技能', s?.source || '江湖技能'));
+      } else if (s.bucket === '内功') {
+        neigong.push(normalizeSkill(s, '内功', '内功'));
+      }
+    });
+  }
 
   if (DB.skills?.profession && typeof DB.skills.profession === 'object') {
     (DB.skills.profession[profName] || []).forEach((s) => prof.push(normalizeSkill(s, '职业技能', profName)));
