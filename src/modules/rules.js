@@ -1,8 +1,16 @@
 import { EXCLUSIVE_RULES, REQUIRED_SKILLS_MIAOYIN, SKILL_ID, SKILL_NAME, SKILL_NAME_ALIASES } from '../constants.js';
+import { getRulesForProfession } from '../data/rules.js';
 import { getKeyById, getKeysByNameAndSource, getKeysByNameExact, state } from './state.js';
 
+const EPS = 1e-12;
+const zhuyueChengfengAliases = SKILL_NAME_ALIASES[SKILL_NAME.ZHUYUE_CHENGFENG] || [SKILL_NAME.ZHUYUE_CHENGFENG];
+const feitianLianxinAliases = SKILL_NAME_ALIASES[SKILL_NAME.FEITIAN_LIANXIN] || [SKILL_NAME.FEITIAN_LIANXIN];
+const fuyangTaixuLingyunAliases = SKILL_NAME_ALIASES[SKILL_NAME.FUYANG_TAIXU_LINGYUN] || [SKILL_NAME.FUYANG_TAIXU_LINGYUN];
+
 function getKeysByAliases(id, aliases = []) {
-  const out = new Set(getKeysByNameExact(id));
+  const out = new Set();
+  const idKey = getKeyById(id);
+  if (idKey) out.add(idKey);
   for (const alias of aliases) {
     for (const key of getKeysByNameExact(alias)) out.add(key);
   }
@@ -13,18 +21,13 @@ export function getActiveRules(profession = state.prof) {
   return getRulesForProfession(profession);
 }
 
+export function enforceRequiredSkills() {
+  if (state.prof !== '妙音') return;
+
   for (const req of REQUIRED_SKILLS_MIAOYIN) {
-    const idKey = getKeyById(req.id);
-    if (idKey && state.skillIndex.get(idKey)?.source === state.prof) {
-      state.selectedKeys.add(idKey);
-      continue;
-    }
     const aliases = SKILL_NAME_ALIASES[req.name] || [req.name];
-    const keys = getKeysByNameAliases(req.name, aliases).filter((k) => state.skillIndex.get(k)?.source === state.prof);
-    if (keys.length > 0) {
-      console.warn(`[enforceRequiredSkills] 使用名称别名兜底匹配：${req.name}`);
-      keys.forEach((k) => state.selectedKeys.add(k));
-    }
+    const keys = getKeysByAliases(req.id, aliases).filter((k) => state.skillIndex.get(k)?.source === state.prof);
+    if (keys.length > 0) keys.forEach((k) => state.selectedKeys.add(k));
   }
 }
 
@@ -47,14 +50,8 @@ export function enforceMutualExclusion(changedSkill) {
     if (aIdKey) aKeys = [aIdKey];
     if (bIdKey) bKeys = [bIdKey];
 
-    if (!aKeys.length) {
-      aKeys = rule.source ? getKeysByNameAndSource(rule.a, rule.source) : getKeysByNameExact(rule.a);
-      if (aKeys.length) console.warn(`[enforceMutualExclusion] A侧使用名称兜底：${rule.a}`);
-    }
-    if (!bKeys.length) {
-      bKeys = rule.source ? getKeysByNameAndSource(rule.b, rule.source) : getKeysByNameExact(rule.b);
-      if (bKeys.length) console.warn(`[enforceMutualExclusion] B侧使用名称兜底：${rule.b}`);
-    }
+    if (!aKeys.length) aKeys = rule.source ? getKeysByNameAndSource(rule.a, rule.source) : getKeysByNameExact(rule.a);
+    if (!bKeys.length) bKeys = rule.source ? getKeysByNameAndSource(rule.b, rule.source) : getKeysByNameExact(rule.b);
 
     const aSelected = aKeys.some((k) => state.selectedKeys.has(k));
     const bSelected = bKeys.some((k) => state.selectedKeys.has(k));

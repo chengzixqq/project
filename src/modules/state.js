@@ -123,15 +123,16 @@ export function effectiveCd(skill, profName = state.prof, woodChoice = state.woo
 }
 
 export function getKeyById(id) {
-  return state.skillIndex.has(id) ? id : null;
+  const hit = [...state.skillIndex.values()].find((s) => s.id === id);
+  return hit ? hit.key : null;
 }
 
 export function getKeysByNameExact(name) {
-  return [...state.skillIndex.values()].filter((s) => s.name === name).map((s) => s.id);
+  return [...state.skillIndex.values()].filter((s) => s.name === name).map((s) => s.key);
 }
 
 export function getKeysByNameAndSource(name, source) {
-  return [...state.skillIndex.values()].filter((s) => s.name === name && s.source === source).map((s) => s.id);
+  return [...state.skillIndex.values()].filter((s) => s.name === name && s.source === source).map((s) => s.key);
 }
 
 export function collectOrderedFromSelected() {
