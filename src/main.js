@@ -1,13 +1,14 @@
 import { buildSkillIndex, collectOrderedFromSelected, DB, effectiveCd, resetAll, state } from './modules/state.js';
 import { enforceMutualExclusion, enforceRequiredSkills } from './modules/rules.js';
 import { $, applyNoCastFilter, buildPlainText, exportCSV, prepareForOrderStep, renderModeOptions, renderOrderList, renderProfOptions, renderResults, renderSkillPicker, setActiveStep } from './modules/render.js';
-import { generateSchedule } from './modules/scheduler.js';
+import { generateSchedule } from './modules/scheduler/core.js';
+import { buildSchedulerInputFromState } from './modules/scheduler/adapters.js';
 
 function getWoodChoice() { const checked = document.querySelector('input[name="wood"]:checked'); return checked ? Number(checked.value) : 0; }
 function getSchedMode() { const checked = document.querySelector('input[name="sched"]:checked'); return checked ? checked.value : 'strict'; }
 
 function init() {
-  $('filterNoCast')?.addEventListener('change', () => { if (state.events?.length) renderResults(state.events); });
+  $('filterNoCast')?.addEventListener('change', () => { if (state.events?.length) renderResults(state.events, state.scheduleStats); });
   renderModeOptions();
   renderProfOptions();
 
@@ -40,8 +41,18 @@ function init() {
     state.modeDuration = Number($('modeDuration').value) || state.modeDuration || 120;
     state.deathThreshold = Math.max(0, Number($('deathThreshold').value) || 0);
     state.woodChoice = getWoodChoice(); state.schedMode = getSchedMode();
-    state.events = generateSchedule(); if (!state.events.length) return;
-    renderResults(state.events); setActiveStep(5);
+
+    const scheduleResult = generateSchedule(buildSchedulerInputFromState(state, { effectiveCd }));
+    state.events = scheduleResult.events || [];
+    state.scheduleStats = scheduleResult.stats || null;
+
+    if (scheduleResult.error) {
+      alert(scheduleResult.error);
+      return;
+    }
+    if (!state.events.length) return;
+
+    renderResults(state.events, state.scheduleStats); setActiveStep(5);
   });
 
   $('copyText').addEventListener('click', async () => {

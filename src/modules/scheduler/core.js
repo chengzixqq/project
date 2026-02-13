@@ -150,7 +150,7 @@ export function generateSchedule(input) {
   const order = Array.isArray(skills) ? skills.filter(Boolean) : [];
   if (!order.length || !(T > 0)) {
     const empty = [];
-    return { events: empty, stats: summarizeEvents(empty, T) };
+    return { events: empty, stats: summarizeEvents(empty, T), error: null };
   }
 
   const profKeys = order.filter((s) => s.source === rules.profession).map((s) => s.key);
@@ -312,5 +312,6 @@ export function generateSchedule(input) {
   return {
     events: annotated,
     stats: summarizeEvents(annotated, T),
+    error: null,
   };
 }
