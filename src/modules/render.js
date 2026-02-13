@@ -108,8 +108,10 @@ export function renderResults(eventsAll, stats = null) {
   const tbody = $('resultTable').querySelector('tbody');
   tbody.innerHTML = '';
 
+  const filterOn = isFilterNoCastOn();
   const { events } = applyNoCastFilter(eventsAll);
-  const summary = stats || buildSummaryFromEvents(eventsAll, state.modeDuration);
+  const summarySource = filterOn ? events : eventsAll;
+  const summary = (!filterOn && stats) ? stats : buildSummaryFromEvents(summarySource, state.modeDuration);
 
   const deathPart = summary.deathCount > 0
     ? ` ｜ 死亡段：<b>${summary.deathCount}</b>（首段起点 <b>${fmt(summary.firstDeathStart ?? 0)}s</b>）`

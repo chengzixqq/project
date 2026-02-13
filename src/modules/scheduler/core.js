@@ -84,6 +84,10 @@ export function mergeVacuumAndSkips(events) {
     if (last && last.type === "vacuum" && Math.abs(last.end - event.start) < 1e-9) {
       last.end = event.end;
       last.duration += event.duration;
+      if (event.note) {
+        if (last.note && last.note !== event.note) last.note = `${last.note} / ${event.note}`;
+        else if (!last.note) last.note = event.note;
+      }
     } else {
       out.push({ ...event });
     }
@@ -101,7 +105,9 @@ export function annotateDeath(events, threshold) {
 
 export function nextCastableTime(skill, t, ctx, nextReady, prereqOptions) {
   if (!prereqOk(skill, t, ctx, nextReady, prereqOptions)) return Infinity;
-  return Math.max(t, nextReady[skill.key] ?? 0);
+  const readyAt = Math.max(t, nextReady[skill.key] ?? 0);
+  if (!prereqOk(skill, readyAt, ctx, nextReady, prereqOptions)) return Infinity;
+  return readyAt;
 }
 
 export function summarizeEvents(events, totalDuration) {
@@ -229,7 +235,7 @@ export function generateSchedule(input) {
           end: t,
           name: skill.name,
           source: skill.source,
-          reason: "前置条件不满足（飞天联动）",
+          reason: "前置条件不满足",
         });
         idx = (idx + 1) % order.length;
         continue;
@@ -274,7 +280,7 @@ export function generateSchedule(input) {
             start: t,
             end: Math.min(T, t),
             duration: 0,
-            note: "动态排轴无法推进：当前无可施放技能（可能因飞天联动前置未满足且无飞天可施放）。",
+            note: "动态排轴无法推进：当前无可施放技能（可能因前置条件未满足或冷却限制）。",
           });
           break;
         }
