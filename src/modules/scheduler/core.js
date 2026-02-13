@@ -1,6 +1,10 @@
 import { SKILL_ID, SKILL_NAME, SKILL_NAME_ALIASES } from '../../constants.js';
+import { RELATION_TYPE } from '../../data/rules.js';
 
 const EPS = 1e-12;
+const zhuyueChengfengAliases = SKILL_NAME_ALIASES[SKILL_NAME.ZHUYUE_CHENGFENG] || [SKILL_NAME.ZHUYUE_CHENGFENG];
+const feitianLianxinAliases = SKILL_NAME_ALIASES[SKILL_NAME.FEITIAN_LIANXIN] || [SKILL_NAME.FEITIAN_LIANXIN];
+const fuyangTaixuLingyunAliases = SKILL_NAME_ALIASES[SKILL_NAME.FUYANG_TAIXU_LINGYUN] || [SKILL_NAME.FUYANG_TAIXU_LINGYUN];
 
 function withAliases(ruleId, ruleParam = {}) {
   const aliases = [];
@@ -45,7 +49,39 @@ function initCtx(relations) {
     sharedDurationGroups,
     replacementUntil: new Map(),
     durationSlots: new Map(),
+    sharedCooldownAt: new Map(),
   };
+}
+
+function ruleSkillId(skill) {
+  return skill?.name || skill?.id || '';
+}
+
+function getReadyAt(skill, nextReady, ctx) {
+  const own = Number(nextReady[skill.key] ?? 0);
+  const gid = ctx.sharedCooldownGroups.get(ruleSkillId(skill));
+  if (!gid) return own;
+  return Math.max(own, Number(ctx.sharedCooldownAt.get(gid) ?? 0));
+}
+
+function setReadyAt(skill, readyAt, nextReady, ctx) {
+  nextReady[skill.key] = readyAt;
+  const gid = ctx.sharedCooldownGroups.get(ruleSkillId(skill));
+  if (gid) ctx.sharedCooldownAt.set(gid, readyAt);
+  ctx.castAt.set(ruleSkillId(skill), readyAt);
+  ctx.casted.add(ruleSkillId(skill));
+}
+
+function resolveReplacement(baseSkill, t, ctx, relations, nameToSkill, nextReady) {
+  for (const rule of relations) {
+    if (rule.relation_type !== RELATION_TYPE.REPLACEMENT) continue;
+    if (!nameIn(baseSkill.name, rule.to_id, rule.param)) continue;
+    const source = nameToSkill.get(rule.from_id);
+    if (!source) continue;
+    const sourceReady = getReadyAt(source, nextReady, ctx);
+    if (sourceReady <= t + EPS) return source;
+  }
+  return baseSkill;
 }
 function isFeitian(skill) { return skill.id ? skill.id === SKILL_ID.FEITIAN : skill.name === SKILL_NAME.FEITIAN; }
 function isLianxin(skill) { return skill.id ? skill.id === SKILL_ID.FEITIAN_LIANXIN : feitianLianxinAliases.includes(skill.name); }
@@ -210,13 +246,13 @@ export function generateSchedule(input) {
     };
   }
 
-  const ruleIndex = buildRuleIndex(rules.relations || [], new Map(order.map((s) => [s.key, s])));
   const nextReady = {};
   const ctx = initCtx(relations);
   const prereqOptions = {
     profession: rules.profession,
     relations,
     nameToKey,
+    zhuyueKey: nameToKey.get(SKILL_NAME.ZHUYUE),
   };
 
   const WOOD3_ICD = 20;
@@ -229,7 +265,7 @@ export function generateSchedule(input) {
   const events = [];
 
   const doCast = (baseSkill) => {
-    const skill = resolveReplacement(baseSkill, t, ctx, relations, nameToSkill);
+    const skill = resolveReplacement(baseSkill, t, ctx, relations, nameToSkill, nextReady);
     const cast = Math.max(0, Number(skill.cast ?? 0));
     const cdEff = Number(skill.cd ?? 0);
 
@@ -308,7 +344,7 @@ export function generateSchedule(input) {
       } else {
         let nextT = Infinity;
         for (const skill of order) {
-          const nt = nextCastableTime(skill, t, ctx, nextReady, ruleIndex);
+          const nt = nextCastableTime(skill, t, ctx, nextReady, prereqOptions);
           if (nt < nextT) nextT = nt;
         }
 
