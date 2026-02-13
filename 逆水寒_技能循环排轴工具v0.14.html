@@ -754,33 +754,45 @@ function isFuyangTaixuLingyun(nm) {
   return nm === "俯仰太虚·灵韵" || nm === "俯仰太虚灵韵" || nm === "俯仰太虚.灵韵" || nm === "俯仰太虚 灵韵";
 }
 
+const PREREQ_REASON = {
+  FEITIAN_CHAIN: "飞天后置链路不满足（飞天·莲心/逐月·乘风相关）",
+  FUYANG_CHAIN: "俯仰太虚链路不满足（未命中逐月冷却窗口）",
+  OTHER: "其他前置失败"
+};
+
 function prereqOk(skill, t, ctx, nextReady, zhuyueKey) {
   const nm = skill.name;
 
   // 飞天联动（仅针对：飞天·莲心、逐月·乘风）
   if (isLianxin(nm)) {
-    if (ctx.lastFeitian === null) return false;
-    if (ctx.feitianWindowEnd === null) return false;
-    return (t <= ctx.feitianWindowEnd + 1e-9);
+    if (ctx.lastFeitian === null) return { ok: false, reason: PREREQ_REASON.FEITIAN_CHAIN };
+    if (ctx.feitianWindowEnd === null) return { ok: false, reason: PREREQ_REASON.FEITIAN_CHAIN };
+    return (t <= ctx.feitianWindowEnd + 1e-9)
+      ? { ok: true, reason: "" }
+      : { ok: false, reason: PREREQ_REASON.FEITIAN_CHAIN };
   }
   if (isZhuyueChengfeng(nm)) {
-    if (ctx.lastFeitian === null) return false;
-    if (ctx.feitianWindowEnd === null) return false;
-    if (ctx.lianxinUsed) return false;
-    return (t <= ctx.feitianWindowEnd + 1e-9);
+    if (ctx.lastFeitian === null) return { ok: false, reason: PREREQ_REASON.FEITIAN_CHAIN };
+    if (ctx.feitianWindowEnd === null) return { ok: false, reason: PREREQ_REASON.FEITIAN_CHAIN };
+    if (ctx.lianxinUsed) return { ok: false, reason: PREREQ_REASON.FEITIAN_CHAIN };
+    return (t <= ctx.feitianWindowEnd + 1e-9)
+      ? { ok: true, reason: "" }
+      : { ok: false, reason: PREREQ_REASON.FEITIAN_CHAIN };
   }
 
   // 俯仰太虚 / 俯仰太虚·灵韵：只能在“逐月”的冷却时间内触发
   if (isFuyangTaixu(nm) || isFuyangTaixuLingyun(nm)) {
     // 仅对妙音做逐月冷却窗口限制（其他职业数据未定义，默认不限制）
-    if (state.prof !== "妙音") return true;
-    if (!zhuyueKey) return false; // 未携带“逐月”则不可用（与“逐月·乘风”无关）
+    if (state.prof !== "妙音") return { ok: true, reason: "" };
+    if (!zhuyueKey) return { ok: false, reason: PREREQ_REASON.FUYANG_CHAIN }; // 未携带“逐月”则不可用（与“逐月·乘风”无关）
     const zyReady = (nextReady && nextReady[zhuyueKey] !== undefined) ? nextReady[zhuyueKey] : undefined;
-    if (zyReady === undefined) return false; // 对应“逐月”技能从未释放过，则不处于冷却窗口
-    return (zyReady > t + 1e-12); // 逐月未转好 => 逐月处于冷却中
+    if (zyReady === undefined) return { ok: false, reason: PREREQ_REASON.FUYANG_CHAIN }; // 对应“逐月”技能从未释放过，则不处于冷却窗口
+    return (zyReady > t + 1e-12)
+      ? { ok: true, reason: "" }
+      : { ok: false, reason: PREREQ_REASON.FUYANG_CHAIN }; // 逐月未转好 => 逐月处于冷却中
   }
 
-  return true;
+  return { ok: true, reason: "" };
 }
 
 function onCastUpdateCtx(skill, t, ctx) {
@@ -819,7 +831,8 @@ function canTriggerWood3ByCast(skill) {
 }
 
 function nextCastableTime(skill, t, ctx, nextReady, zhuyueKey) {
-  if (!prereqOk(skill, t, ctx, nextReady, zhuyueKey)) return Infinity;
+  const prereq = prereqOk(skill, t, ctx, nextReady, zhuyueKey);
+  if (!prereq.ok) return Infinity;
   return Math.max(t, (nextReady[skill.key] ?? 0));
 }
 
@@ -903,13 +916,14 @@ function generateSchedule() {
     if (mode === "strict") {
       const s = order[idx];
 
-      if (!prereqOk(s, t, ctx, nextReady, zhuyueKey)) {
+      const prereq = prereqOk(s, t, ctx, nextReady, zhuyueKey);
+      if (!prereq.ok) {
         events.push({
           type: "skip",
           start: t, end: t,
           name: s.name,
           source: s.source,
-          reason: "前置条件不满足（飞天联动）"
+          reason: prereq.reason || PREREQ_REASON.OTHER
         });
         idx = (idx + 1) % order.length;
         continue;
@@ -930,7 +944,8 @@ function generateSchedule() {
       let found = -1;
       for (let off = 0; off < order.length; off++) {
         const s = order[(idx + off) % order.length];
-        if (!prereqOk(s, t, ctx, nextReady, zhuyueKey)) continue;
+        const prereq = prereqOk(s, t, ctx, nextReady, zhuyueKey);
+        if (!prereq.ok) continue;
         const ready = (nextReady[s.key] ?? 0);
         if (ready <= t + 1e-12) { found = off; break; }
       }
