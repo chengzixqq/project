@@ -27,7 +27,10 @@ export function enforceRequiredSkills() {
 
 export function isMiaoyinRequiredSkill(skill) {
   if (state.prof !== '妙音') return false;
-  return REQUIRED_SKILLS_MIAOYIN.includes(skill.name);
+  return REQUIRED_SKILLS_MIAOYIN.some((name) => {
+    const aliases = SKILL_NAME_ALIASES[name] || [name];
+    return aliases.includes(skill.name);
+  });
 }
 
 export function enforceMutualExclusion(changedSkill) {
