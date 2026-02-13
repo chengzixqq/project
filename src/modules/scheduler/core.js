@@ -1,16 +1,22 @@
+import { SKILL_NAME, SKILL_NAME_ALIASES } from '../../constants.js';
+
 const EPS = 1e-12;
+
+const zhuyueChengfengAliases = SKILL_NAME_ALIASES[SKILL_NAME.ZHUYUE_CHENGFENG] || [SKILL_NAME.ZHUYUE_CHENGFENG];
+const feitianLianxinAliases = SKILL_NAME_ALIASES[SKILL_NAME.FEITIAN_LIANXIN] || [SKILL_NAME.FEITIAN_LIANXIN];
+const fuyangTaixuLingyunAliases = SKILL_NAME_ALIASES[SKILL_NAME.FUYANG_TAIXU_LINGYUN] || [SKILL_NAME.FUYANG_TAIXU_LINGYUN];
 
 function initCtx() {
   return { lastFeitian: null, feitianWindowEnd: null, lianxinUsed: false };
 }
-function isFeitian(name) { return name === "飞天"; }
-function isLianxin(name) { return name === "飞天·莲心"; }
+function isFeitian(name) { return name === SKILL_NAME.FEITIAN; }
+function isLianxin(name) { return feitianLianxinAliases.includes(name); }
 function isZhuyueChengfeng(name) {
-  return name === "逐月·乘风" || name === "逐月乘风" || name === "逐月.乘风" || name === "逐月 乘风";
+  return zhuyueChengfengAliases.includes(name);
 }
-function isFuyangTaixu(name) { return name === "俯仰太虚"; }
+function isFuyangTaixu(name) { return name === SKILL_NAME.FUYANG_TAIXU; }
 function isFuyangTaixuLingyun(name) {
-  return name === "俯仰太虚·灵韵" || name === "俯仰太虚灵韵" || name === "俯仰太虚.灵韵" || name === "俯仰太虚 灵韵";
+  return fuyangTaixuLingyunAliases.includes(name);
 }
 
 function prereqOk(skill, t, ctx, nextReady, options) {
