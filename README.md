@@ -24,6 +24,16 @@ npx serve -l 5173
 
 浏览器打开：`http://localhost:5173`
 
+### 方式三：Windows 一键启动（双击即可）
+
+仓库根目录新增 `run_windows.bat`，双击后会自动：
+
+1. 检测 Python（`py` / `python` / `python3`）
+2. 启动本地服务（端口 `5173`）
+3. 自动打开浏览器到 `http://localhost:5173`
+
+> 需要你本机已安装 Python 3，并加入 PATH。
+
 ## 需要先编译吗？
 
 当前仓库不需要编译，可以直接以静态站点方式运行。
