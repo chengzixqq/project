@@ -90,10 +90,11 @@
     table { width: 100%; border-collapse: collapse; font-size: 13px; overflow: hidden; border-radius: 12px; }
     th, td { border-bottom: 1px solid var(--border); padding: 10px 10px; vertical-align: top; }
     th { text-align: left; color: #cfe0ff; background: rgba(255,255,255,0.03); }
-    tr.vacuum td { color: #ffd9d9; background: rgba(255,107,107,0.10); }
-    tr.vacuum.death td { color: #ffe6e6; background: rgba(255, 60, 60, 0.22); border-bottom-color: rgba(255, 80, 80, 0.55); }
-    tr.vacuum.death td:first-child { box-shadow: inset 4px 0 0 rgba(255, 60, 60, 0.85); }
-    tr.skip td { color: #ffecc2; background: rgba(255,209,102,0.10); }
+    tr.vacuum td, tr.row-vacuum td { color: #ffd9d9; background: rgba(255,107,107,0.10); border-bottom-color: rgba(255,107,107,0.35); }
+    tr.vacuum td:first-child, tr.row-vacuum td:first-child { box-shadow: inset 3px 0 0 rgba(255,107,107,0.5); }
+    tr.vacuum.death td, tr.row-vacuum.row-death td { color: #ffe6e6; background: rgba(255, 60, 60, 0.22); border-bottom-color: rgba(255, 80, 80, 0.55); }
+    tr.vacuum.death td:first-child, tr.row-vacuum.row-death td:first-child { box-shadow: inset 4px 0 0 rgba(255, 60, 60, 0.85); }
+    tr.skip td, tr.row-skip td { color: #ffecc2; background: rgba(255,209,102,0.10); }
     .muted { color: var(--muted); }
     .hidden { display: none; }
     .footerNote { margin-top: 16px; color: var(--muted); font-size: 12px; line-height: 1.6; }
