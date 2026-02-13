@@ -1,35 +1,72 @@
-import { SKILL_NAME, SKILL_NAME_ALIASES } from '../../constants.js';
+import { SKILL_ID, SKILL_NAME, SKILL_NAME_ALIASES } from '../../constants.js';
 
 const EPS = 1e-12;
 
-const zhuyueChengfengAliases = SKILL_NAME_ALIASES[SKILL_NAME.ZHUYUE_CHENGFENG] || [SKILL_NAME.ZHUYUE_CHENGFENG];
-const feitianLianxinAliases = SKILL_NAME_ALIASES[SKILL_NAME.FEITIAN_LIANXIN] || [SKILL_NAME.FEITIAN_LIANXIN];
-const fuyangTaixuLingyunAliases = SKILL_NAME_ALIASES[SKILL_NAME.FUYANG_TAIXU_LINGYUN] || [SKILL_NAME.FUYANG_TAIXU_LINGYUN];
+function withAliases(ruleId, ruleParam = {}) {
+  const aliases = [];
+  for (const key of ['aliases', 'target_aliases', 'anchor_aliases']) {
+    for (const item of (ruleParam[key] || [])) aliases.push(item);
+  }
+  return [ruleId, ...aliases];
+}
 
-function initCtx() {
-  return { lastFeitian: null, feitianWindowEnd: null, lianxinUsed: false };
+function nameIn(name, id, param) {
+  return withAliases(id, param).includes(name);
 }
-function isFeitian(name) { return name === SKILL_NAME.FEITIAN; }
-function isLianxin(name) { return feitianLianxinAliases.includes(name); }
-function isZhuyueChengfeng(name) {
-  return zhuyueChengfengAliases.includes(name);
+
+function initCtx(relations) {
+  const sharedCooldownGroups = new Map();
+  const sharedDurationGroups = new Map();
+  let slotId = 0;
+
+  const bindGroup = (groupMap, a, b) => {
+    const currentA = groupMap.get(a);
+    const currentB = groupMap.get(b);
+    if (currentA && currentB && currentA !== currentB) {
+      for (const [key, val] of groupMap.entries()) {
+        if (val === currentB) groupMap.set(key, currentA);
+      }
+      return;
+    }
+    const target = currentA || currentB || `slot_${slotId++}`;
+    groupMap.set(a, target);
+    groupMap.set(b, target);
+  };
+
+  for (const rule of relations) {
+    if (rule.relation_type === RELATION_TYPE.SHARED_COOLDOWN) bindGroup(sharedCooldownGroups, rule.from_id, rule.to_id);
+    if (rule.relation_type === RELATION_TYPE.SHARED_DURATION) bindGroup(sharedDurationGroups, rule.from_id, rule.to_id);
+  }
+
+  return {
+    castAt: new Map(),
+    casted: new Set(),
+    sharedCooldownGroups,
+    sharedDurationGroups,
+    replacementUntil: new Map(),
+    durationSlots: new Map(),
+  };
 }
-function isFuyangTaixu(name) { return name === SKILL_NAME.FUYANG_TAIXU; }
-function isFuyangTaixuLingyun(name) {
-  return fuyangTaixuLingyunAliases.includes(name);
+function isFeitian(skill) { return skill.id ? skill.id === SKILL_ID.FEITIAN : skill.name === SKILL_NAME.FEITIAN; }
+function isLianxin(skill) { return skill.id ? skill.id === SKILL_ID.FEITIAN_LIANXIN : feitianLianxinAliases.includes(skill.name); }
+function isZhuyueChengfeng(skill) {
+  return skill.id ? skill.id === SKILL_ID.ZHUYUE_CHENGFENG : zhuyueChengfengAliases.includes(skill.name);
+}
+function isFuyangTaixu(skill) { return skill.id ? skill.id === SKILL_ID.FUYANG_TAIXU : skill.name === SKILL_NAME.FUYANG_TAIXU; }
+function isFuyangTaixuLingyun(skill) {
+  return skill.id ? skill.id === SKILL_ID.FUYANG_TAIXU_LINGYUN : fuyangTaixuLingyunAliases.includes(skill.name);
 }
 
 function prereqOk(skill, t, ctx, nextReady, options) {
-  const name = skill.name;
   const { profession, zhuyueKey } = options;
 
-  if (isLianxin(name) || isZhuyueChengfeng(name)) {
+  if (isLianxin(skill) || isZhuyueChengfeng(skill)) {
     if (ctx.lastFeitian === null || ctx.feitianWindowEnd === null) return false;
-    if (isZhuyueChengfeng(name) && ctx.lianxinUsed) return false;
+    if (isZhuyueChengfeng(skill) && ctx.lianxinUsed) return false;
     return t <= ctx.feitianWindowEnd + 1e-9;
   }
 
-  if (isFuyangTaixu(name) || isFuyangTaixuLingyun(name)) {
+  if (isFuyangTaixu(skill) || isFuyangTaixuLingyun(skill)) {
     if (profession !== "妙音") return true;
     if (!zhuyueKey) return false;
     const readyAt = nextReady[zhuyueKey];
@@ -41,13 +78,13 @@ function prereqOk(skill, t, ctx, nextReady, options) {
 }
 
 function onCastUpdateCtx(skill, t, ctx) {
-  if (isFeitian(skill.name)) {
+  if (isFeitian(skill)) {
     ctx.lastFeitian = t;
     ctx.feitianWindowEnd = t + 20;
     ctx.lianxinUsed = false;
     return;
   }
-  if (isLianxin(skill.name)) ctx.lianxinUsed = true;
+  if (isLianxin(skill)) ctx.lianxinUsed = true;
 }
 
 function countProfCooldown(nextReady, profKeys, t) {
@@ -70,18 +107,18 @@ function applyWood3Proc(nextReady, profKeys, t) {
 }
 
 function canTriggerWood3ByCast(skill) {
-  return skill.source !== "内功";
+  return skill.source !== '内功';
 }
 
 export function mergeVacuumAndSkips(events) {
   const out = [];
   for (const event of events) {
-    if (event.type !== "vacuum") {
+    if (event.type !== 'vacuum') {
       out.push(event);
       continue;
     }
     const last = out[out.length - 1];
-    if (last && last.type === "vacuum" && Math.abs(last.end - event.start) < 1e-9) {
+    if (last && last.type === 'vacuum' && Math.abs(last.end - event.start) < 1e-9) {
       last.end = event.end;
       last.duration += event.duration;
       if (event.note) {
@@ -98,14 +135,14 @@ export function mergeVacuumAndSkips(events) {
 export function annotateDeath(events, threshold) {
   const th = Number(threshold) || 0;
   if (!(th > 0)) return events.map((event) => ({ ...event, death: false }));
-  return events.map((event) => (event.type !== "vacuum"
+  return events.map((event) => (event.type !== 'vacuum'
     ? { ...event, death: false }
     : { ...event, death: event.duration >= th }));
 }
 
 export function nextCastableTime(skill, t, ctx, nextReady, prereqOptions) {
   if (!prereqOk(skill, t, ctx, nextReady, prereqOptions)) return Infinity;
-  const readyAt = Math.max(t, nextReady[skill.key] ?? 0);
+  const readyAt = Math.max(t, getReadyAt(skill, nextReady, ctx));
   if (!prereqOk(skill, readyAt, ctx, nextReady, prereqOptions)) return Infinity;
   return readyAt;
 }
@@ -120,7 +157,7 @@ export function summarizeEvents(events, totalDuration) {
   let wood3ProcCount = 0;
 
   for (const event of events) {
-    if (event.type === "vacuum") {
+    if (event.type === 'vacuum') {
       vacuum += event.duration;
       maxVac = Math.max(maxVac, event.duration);
       if (event.death) {
@@ -129,12 +166,12 @@ export function summarizeEvents(events, totalDuration) {
       }
       continue;
     }
-    if (event.type === "skill") {
+    if (event.type === 'skill') {
       skillCount += 1;
       if (event.wood3Triggered) wood3ProcCount += 1;
       continue;
     }
-    if (event.type === "skip") skipCount += 1;
+    if (event.type === 'skip') skipCount += 1;
   }
 
   return {
@@ -151,12 +188,7 @@ export function summarizeEvents(events, totalDuration) {
 }
 
 export function generateSchedule(input) {
-  const {
-    modeDuration,
-    skills,
-    rules,
-    strategy,
-  } = input;
+  const { modeDuration, skills, rules, strategy } = input;
 
   const T = Number(modeDuration);
   const order = Array.isArray(skills) ? skills.filter(Boolean) : [];
@@ -165,21 +197,26 @@ export function generateSchedule(input) {
     return { events: empty, stats: summarizeEvents(empty, T), error: null };
   }
 
+  const relations = rules.relations || [];
+  const nameToKey = new Map(order.map((s) => [s.name, s.key]));
+  const nameToSkill = new Map(order.map((s) => [s.name, s]));
   const profKeys = order.filter((s) => s.source === rules.profession).map((s) => s.key);
   const traps = order.filter((s) => !((s.cast ?? 0) > 0) && !((s.cd ?? 0) > 0));
   if (traps.length > 0) {
     return {
       events: [],
       stats: summarizeEvents([], T),
-      error: `存在“霸体=0 且 有效冷却=0”的技能：${traps.map((s) => `${s.name}（${s.source}）`).join("、")}`,
+      error: `存在“霸体=0 且 有效冷却=0”的技能：${traps.map((s) => `${s.name}（${s.source}）`).join('、')}`,
     };
   }
 
+  const ruleIndex = buildRuleIndex(rules.relations || [], new Map(order.map((s) => [s.key, s])));
   const nextReady = {};
-  const ctx = initCtx();
+  const ctx = initCtx(relations);
   const prereqOptions = {
     profession: rules.profession,
-    zhuyueKey: rules.zhuyueKey || null,
+    relations,
+    nameToKey,
   };
 
   const WOOD3_ICD = 20;
@@ -191,7 +228,8 @@ export function generateSchedule(input) {
   let lastT = t;
   const events = [];
 
-  const doCast = (skill) => {
+  const doCast = (baseSkill) => {
+    const skill = resolveReplacement(baseSkill, t, ctx, relations, nameToSkill);
     const cast = Math.max(0, Number(skill.cast ?? 0));
     const cdEff = Number(skill.cd ?? 0);
 
@@ -207,7 +245,7 @@ export function generateSchedule(input) {
 
     const end = Math.min(t + cast, T);
     events.push({
-      type: "skill",
+      type: 'skill',
       key: skill.key,
       name: skill.name,
       source: skill.source,
@@ -218,33 +256,33 @@ export function generateSchedule(input) {
       wood3Triggered,
     });
 
-    nextReady[skill.key] = t + cdEff;
-    onCastUpdateCtx(skill, t, ctx);
+    setReadyAt(skill, t + cdEff, nextReady, ctx);
+    onCastUpdateCtx(skill, t, ctx, relations);
     t += cast;
   };
 
   while (t < T - 1e-9 && guard < 300000) {
     guard += 1;
 
-    if (strategy === "strict") {
+    if (strategy === 'strict') {
       const skill = order[idx];
       if (!prereqOk(skill, t, ctx, nextReady, prereqOptions)) {
         events.push({
-          type: "skip",
+          type: 'skip',
           start: t,
           end: t,
           name: skill.name,
           source: skill.source,
-          reason: "前置条件不满足",
+          reason: '前置条件不满足',
         });
         idx = (idx + 1) % order.length;
         continue;
       }
 
-      const ready = nextReady[skill.key] ?? 0;
+      const ready = getReadyAt(skill, nextReady, ctx);
       if (ready > t + EPS) {
         const endVac = Math.min(ready, T);
-        events.push({ type: "vacuum", start: t, end: endVac, duration: endVac - t });
+        events.push({ type: 'vacuum', start: t, end: endVac, duration: endVac - t });
         t = ready;
         if (t >= T - 1e-9) break;
       }
@@ -256,7 +294,7 @@ export function generateSchedule(input) {
       for (let off = 0; off < order.length; off += 1) {
         const skill = order[(idx + off) % order.length];
         if (!prereqOk(skill, t, ctx, nextReady, prereqOptions)) continue;
-        const ready = nextReady[skill.key] ?? 0;
+        const ready = getReadyAt(skill, nextReady, ctx);
         if (ready <= t + EPS) {
           found = off;
           break;
@@ -270,23 +308,23 @@ export function generateSchedule(input) {
       } else {
         let nextT = Infinity;
         for (const skill of order) {
-          const nt = nextCastableTime(skill, t, ctx, nextReady, prereqOptions);
+          const nt = nextCastableTime(skill, t, ctx, nextReady, ruleIndex);
           if (nt < nextT) nextT = nt;
         }
 
         if (!Number.isFinite(nextT) || nextT <= t + EPS) {
           events.push({
-            type: "vacuum",
+            type: 'vacuum',
             start: t,
             end: Math.min(T, t),
             duration: 0,
-            note: "动态排轴无法推进：当前无可施放技能（可能因前置条件未满足或冷却限制）。",
+            note: '动态排轴无法推进：当前无可施放技能（可能因前置条件未满足或冷却限制）。',
           });
           break;
         }
 
         const endVac = Math.min(nextT, T);
-        events.push({ type: "vacuum", start: t, end: endVac, duration: endVac - t });
+        events.push({ type: 'vacuum', start: t, end: endVac, duration: endVac - t });
         t = nextT;
       }
     }
@@ -299,11 +337,11 @@ export function generateSchedule(input) {
 
     if (stagnantCount > order.length * 120) {
       events.push({
-        type: "vacuum",
+        type: 'vacuum',
         start: t,
         end: Math.min(T, t),
         duration: 0,
-        note: "检测到时间长期不推进（大量0秒占用/跳过循环）。请补齐“霸体时间”或调整排轴/前置条件。",
+        note: '检测到时间长期不推进（大量0秒占用/跳过循环）。请补齐“霸体时间”或调整排轴/前置条件。',
       });
       break;
     }
@@ -311,19 +349,15 @@ export function generateSchedule(input) {
 
   if (guard >= 300000) {
     events.push({
-      type: "vacuum",
+      type: 'vacuum',
       start: Math.min(t, T),
       end: T,
       duration: Math.max(0, T - t),
-      note: "触发安全退出：事件数过多。",
+      note: '触发安全退出：事件数过多。',
     });
   }
 
-  const merged = mergeVacuumAndSkips(events);
-  const annotated = annotateDeath(merged, rules.deathThreshold);
-  return {
-    events: annotated,
-    stats: summarizeEvents(annotated, T),
-    error: null,
-  };
+  const merged = mergeVacuumAndSkips(events).filter((e) => e.end >= e.start - 1e-9);
+  const finalEvents = annotateDeath(merged, rules.deathThreshold);
+  return { events: finalEvents, stats: summarizeEvents(finalEvents, T), error: null };
 }

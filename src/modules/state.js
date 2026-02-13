@@ -11,6 +11,7 @@ export const state = {
   schedMode: 'strict',
   skillIndex: new Map(),
   selectedKeys: new Set(),
+  autoRequiredKeys: new Set(),
   orderedKeys: [],
   events: [],
   scheduleStats: null,
@@ -121,12 +122,16 @@ export function effectiveCd(skill, profName = state.prof, woodChoice = state.woo
   return base;
 }
 
+export function getKeyById(id) {
+  return state.skillIndex.has(id) ? id : null;
+}
+
 export function getKeysByNameExact(name) {
-  return [...state.skillIndex.values()].filter((s) => s.name === name).map((s) => s.key);
+  return [...state.skillIndex.values()].filter((s) => s.name === name).map((s) => s.id);
 }
 
 export function getKeysByNameAndSource(name, source) {
-  return [...state.skillIndex.values()].filter((s) => s.name === name && s.source === source).map((s) => s.key);
+  return [...state.skillIndex.values()].filter((s) => s.name === name && s.source === source).map((s) => s.id);
 }
 
 export function collectOrderedFromSelected() {
@@ -142,6 +147,7 @@ export function resetAll() {
   state.currentStep = 1;
   state.maxVisitedStep = 1;
   state.selectedKeys = new Set();
+  state.autoRequiredKeys = new Set();
   state.orderedKeys = [];
   state.events = [];
   state.scheduleStats = null;
