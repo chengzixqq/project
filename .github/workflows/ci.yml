@@ -1,0 +1,37 @@
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+jobs:
+  quality-and-package:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Check JavaScript syntax
+        run: |
+          set -e
+          for f in $(find src -name '*.js' -type f | sort); do
+            node --check "$f"
+          done
+
+      - name: Package static site artifact
+        run: |
+          set -e
+          mkdir -p dist
+          cp -r index.html src examples dist/
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: nishuihan-scheduler-static
+          path: dist
