@@ -467,8 +467,7 @@ function renderSkillPicker() {
   const prof = state.prof;
   state.skillIndex = buildSkillIndex(prof);
 
-  // 妙音必带：逐月、逐月·乘风
-  enforceRequiredSkills();
+  RuleEngine.applyRequiredSkills(state);
 
   const container = $("skillContainer");
   container.innerHTML = "";
@@ -516,7 +515,7 @@ function renderSkillPicker() {
     return;
   }
 
-  enforceMutualExclusion();
+  RuleEngine.applyMutualExclusions(state);
 
   for (const [src, arr] of grouped.entries()) {
     arr.sort((a,b)=>a.name.localeCompare(b.name, "zh-CN"));
@@ -540,7 +539,7 @@ function renderSkillPicker() {
 
       const cb = document.createElement("input");
       cb.type = "checkbox";
-      const required = isMiaoyinRequiredSkill(s);
+      const required = RuleEngine.isRequiredSkill(state, s);
       if (required) state.selectedKeys.add(s.key);
       cb.checked = state.selectedKeys.has(s.key);
       cb.disabled = willLoopTrap || required;
@@ -548,7 +547,7 @@ function renderSkillPicker() {
       cb.addEventListener("change", () => {
         if (cb.checked) {
           state.selectedKeys.add(s.key);
-          applyExclusiveOnSelect(s);
+          RuleEngine.applyMutualExclusions(state, s);
         } else {
           state.selectedKeys.delete(s.key);
         }
@@ -679,7 +678,7 @@ function renderOrderList() {
     const del = document.createElement("button");
     del.textContent = "移除";
     del.className = "danger";
-    const required = isMiaoyinRequiredSkill(s);
+    const required = RuleEngine.isRequiredSkill(state, s);
     if (required) {
       del.disabled = true;
       del.title = "妙音必带解控：不可移除";
@@ -809,8 +808,15 @@ function canTriggerWood3ByCast(skill) {
   return skill.source !== SKILL_SOURCE.NEIGONG;
 }
 
-function nextCastableTime(skill, t, ctx, nextReady, zhuyueKey) {
-  if (!prereqOk(skill, t, ctx, nextReady, zhuyueKey)) return Infinity;
+function nextCastableTime(skill, t, ctx, nextReady, referenceKeys) {
+  const res = RuleEngine.checkPrerequisite(skill, {
+    prof: state.prof,
+    time: t,
+    combo: ctx.combo,
+    nextReady,
+    referenceKeys
+  });
+  if (!res.ok) return Infinity;
   return Math.max(t, (nextReady[skill.key] ?? 0));
 }
 
@@ -833,7 +839,6 @@ function generateSchedule() {
 
   const nextReady = {};
   let wood3NextReady = 0;
-  const WOOD3_ICD = 20.0;
 
   let t = 0;
   let idx = 0;
@@ -851,8 +856,7 @@ function generateSchedule() {
     for (const s of order) {
       if (s && s.name === SKILL_NAME.ZHUYUE) return s.key;
     }
-    return null;
-  })();
+  }
 
 
   function doCast(skill) {
@@ -861,13 +865,19 @@ function generateSchedule() {
     const cdEff = effectiveCd(skill, prof, wood);
 
     let wood3Triggered = false;
-    if (wood === 3 && canTriggerWood3ByCast(skill) && t + 1e-12 >= wood3NextReady) {
-      const cnt = countProfCooldown(nextReady, profKeys, t);
-      if (cnt >= 3) {
-        applyWood3Proc(nextReady, profKeys, t);
-        wood3NextReady = t + WOOD3_ICD;
-        wood3Triggered = true;
-      }
+    const specialRes = RuleEngine.applySpecialEffects({
+      name: skill.name,
+      source: skill.source
+    }, {
+      time: t,
+      woodChoice: wood,
+      wood3NextReady,
+      nextReady,
+      profKeys
+    });
+    if (specialRes.appliedRuleIds.length > 0) {
+      wood3Triggered = true;
+      wood3NextReady = specialRes.wood3NextReady || wood3NextReady;
     }
 
     const end = Math.min(t + cast, T);
@@ -884,7 +894,7 @@ function generateSchedule() {
     });
 
     nextReady[skill.key] = t + cdEff;
-    onCastUpdateCtx(skill, t, ctx);
+    RuleEngine.updateCastContext(skill, t, ctx);
     t += cast;
   }
 
@@ -894,13 +904,14 @@ function generateSchedule() {
     if (mode === SCHED_MODE.STRICT) {
       const s = order[idx];
 
-      if (!prereqOk(s, t, ctx, nextReady, zhuyueKey)) {
+      const preCheck = RuleEngine.checkPrerequisite(s, { prof: state.prof, time: t, combo: ctx.combo, nextReady, referenceKeys });
+      if (!preCheck.ok) {
         events.push({
           type: "skip",
           start: t, end: t,
           name: s.name,
           source: s.source,
-          reason: "前置条件不满足（飞天联动）"
+          reason: `前置条件不满足（${preCheck.ruleId || "UNKNOWN_RULE"}）`
         });
         idx = (idx + 1) % order.length;
         continue;
@@ -921,7 +932,8 @@ function generateSchedule() {
       let found = -1;
       for (let off = 0; off < order.length; off++) {
         const s = order[(idx + off) % order.length];
-        if (!prereqOk(s, t, ctx, nextReady, zhuyueKey)) continue;
+        const preCheck = RuleEngine.checkPrerequisite(s, { prof: state.prof, time: t, combo: ctx.combo, nextReady, referenceKeys });
+        if (!preCheck.ok) continue;
         const ready = (nextReady[s.key] ?? 0);
         if (ready <= t + 1e-12) { found = off; break; }
       }
@@ -933,7 +945,7 @@ function generateSchedule() {
       } else {
         let nextT = Infinity;
         for (const s of order) {
-          const nt = nextCastableTime(s, t, ctx, nextReady, zhuyueKey);
+          const nt = nextCastableTime(s, t, ctx, nextReady, referenceKeys);
           if (nt < nextT) nextT = nt;
         }
         if (!isFinite(nextT) || nextT <= t + 1e-12) {
@@ -1191,7 +1203,7 @@ function init() {
       if (search && !s.name.toLowerCase().includes(search)) continue;
       state.selectedKeys.add(s.key);
     }
-    enforceMutualExclusion();
+    RuleEngine.applyMutualExclusions(state);
     renderSkillPicker();
   });
 
@@ -1199,14 +1211,14 @@ function init() {
     state.selectedKeys.clear();
     state.orderedKeys = [];
     // 清空后仍保留妙音必带
-    enforceRequiredSkills();
+    RuleEngine.applyRequiredSkills(state);
     renderSkillPicker();
   });
 
   $("toStep4").addEventListener("click", ()=> {
     state.skillIndex = buildSkillIndex(state.prof);
     // 进入排序前再次确保妙音必带已加入选择
-    enforceRequiredSkills();
+    RuleEngine.applyRequiredSkills(state);
     collectOrderedFromSelected();
     renderOrderList();
     setActiveStep(4);
@@ -1216,7 +1228,7 @@ function init() {
 
   $("calc").addEventListener("click", ()=> {
     // 生成前再次确保妙音必带存在
-    enforceRequiredSkills();
+    RuleEngine.applyRequiredSkills(state);
     collectOrderedFromSelected();
     if (!state.orderedKeys.length) { renderOrderList(); return; }
     state.modeDuration = Number($("modeDuration").value) || state.modeDuration || 120;
