@@ -83,7 +83,21 @@ export function renderResults(eventsAll, stats = null) {
   $('summaryBox').innerHTML = `模式：<b>${DB.modes.find((m) => m.id === state.modeId)?.name || state.modeId}</b> ｜ 时长：<b>${state.modeDuration}s</b> ｜ 施放次数：<b>${computed.skillCount}</b> ｜ 跳过：<b>${computed.skipCount || 0}</b> ｜ 真空总时长：<b>${fmt(computed.vacuum || 0)}s</b>（<b>${fmt(computed.vacuumPct || 0)}%</b>） ｜ 最大真空：<b>${fmt(computed.maxVac || 0)}s</b>${computed.deathCount ? ` ｜ 死亡段：<b>${computed.deathCount}</b>（首段起点 <b>${fmt(computed.firstDeathStart || 0)}s</b>）` : ''}`;
   events.forEach((e) => {
     const tr = document.createElement('tr');
-    tr.innerHTML = `<td class="mono">${fmt(e.start)}s</td><td class="mono">${fmt(e.end)}s</td><td>${e.type === 'skill' ? `<b>${e.name}</b>` : e.type === 'skip' ? `<b>跳过：${e.name}</b>` : '<b>真空</b>'}</td><td>${(e.type === 'skill' || e.type === 'skip') ? e.source : '-'}</td><td class="mono">${e.type === 'skill' ? `${fmt(e.cast)}s` : `${fmt(e.duration || 0)}s`}</td><td class="mono">${e.type === 'skill' ? `${fmt(e.cd)}s` : '-'}</td>`;
+    if (e.type === 'skip') tr.classList.add('skip', 'row-skip');
+    if (e.type === 'vacuum') {
+      tr.classList.add('vacuum', 'row-vacuum');
+      if (e.death === true) tr.classList.add('death', 'row-death');
+    }
+
+    let actionText = `<b>${e.name}</b>`;
+    if (e.type === 'skip') {
+      actionText = `<b>跳过：${e.name}</b>`;
+    } else if (e.type === 'vacuum') {
+      const vacuumLabel = e.death === true ? '死亡真空（单段真空 ≥ 阈值）' : '真空（无可施放技能）';
+      actionText = `<b>${vacuumLabel}</b>${e.note ? `<div class="muted">${e.note}</div>` : ''}`;
+    }
+
+    tr.innerHTML = `<td class="mono">${fmt(e.start)}s</td><td class="mono">${fmt(e.end)}s</td><td>${actionText}</td><td>${(e.type === 'skill' || e.type === 'skip') ? e.source : '-'}</td><td class="mono">${e.type === 'skill' ? `${fmt(e.cast)}s` : `${fmt(e.duration || 0)}s`}</td><td class="mono">${e.type === 'skill' ? `${fmt(e.cd)}s` : '-'}</td>`;
     tbody.appendChild(tr);
   });
 }
