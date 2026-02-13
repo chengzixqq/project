@@ -48,7 +48,10 @@
     .pill {
       font-size: 12px; border: 1px solid var(--border); background: rgba(255,255,255,0.02);
       border-radius: 999px; padding: 6px 10px; color: var(--muted);
+      user-select: none; cursor: default; transition: border-color 0.2s ease, color 0.2s ease, background 0.2s ease;
     }
+    .pill.clickable { cursor: pointer; }
+    .pill.clickable:hover { border-color: rgba(122,162,255,0.45); color: #dce6fb; }
     .pill.active { border-color: rgba(122,162,255,0.6); color: var(--text); }
     .warn {
       border-left: 4px solid var(--danger); background: rgba(255,107,107,0.12);

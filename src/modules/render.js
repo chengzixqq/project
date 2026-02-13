@@ -3,7 +3,17 @@ import { applyExclusiveOnSelect, enforceMutualExclusion, enforceRequiredSkills, 
 
 export const $ = (id) => document.getElementById(id);
 export const fmt = (t) => { const s = (Math.round(t * 100) / 100).toFixed(2); return s.endsWith('.00') ? s.slice(0, -3) : s.replace(/0$/, ''); };
-export function setActiveStep(n) { for (let i = 1; i <= 5; i++) { $(`pill${i}`).classList.toggle('active', i === n); $(`step${i}`).classList.toggle('hidden', i !== n); } }
+export function setActiveStep(n) {
+  const next = Math.max(1, Math.min(5, Number(n) || 1));
+  state.currentStep = next;
+  state.maxVisitedStep = Math.max(state.maxVisitedStep || 1, next);
+  for (let i = 1; i <= 5; i++) {
+    const pill = $(`pill${i}`);
+    pill.classList.toggle('active', i === next);
+    pill.classList.toggle('clickable', i <= state.maxVisitedStep);
+    $(`step${i}`).classList.toggle('hidden', i !== next);
+  }
+}
 
 export function renderModeOptions() {
   const sel = $('modeSelect'); sel.innerHTML = '';
