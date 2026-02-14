@@ -1,6 +1,6 @@
 export const DB = {
   "meta": {
-    "generated_at": "2026-02-13T22:59:01.177Z",
+    "generated_at": "2026-02-14T00:28:39.853Z",
     "source_file": "逆水寒数据.xlsx",
     "profession_sheets": [
       "妙音",
@@ -12,7 +12,8 @@ export const DB = {
     ],
     "jianghu_categories": [
       "绝技",
-      "百家"
+      "百家",
+      "群侠"
     ]
   },
   "modes": [
@@ -138,23 +139,23 @@ export const DB = {
       "素心": [
         {
           "name": "山盟",
-          "cd": null,
+          "cd": 20,
           "cast": null,
-          "duration": null,
+          "duration": 10,
           "dmg_reduction": null,
           "note": null
         },
         {
           "name": "落霞",
-          "cd": null,
+          "cd": 20,
           "cast": null,
           "duration": null,
-          "dmg_reduction": null,
+          "dmg_reduction": 8,
           "note": null
         },
         {
           "name": "初绽",
-          "cd": null,
+          "cd": 7,
           "cast": null,
           "duration": null,
           "dmg_reduction": null,
@@ -162,33 +163,49 @@ export const DB = {
         },
         {
           "name": "约定",
-          "cd": null,
+          "cd": 35,
           "cast": null,
-          "duration": null,
-          "dmg_reduction": null,
+          "duration": 5,
+          "dmg_reduction": 25,
           "note": null
         },
         {
           "name": "风摇筝",
-          "cd": null,
-          "cast": null,
+          "cd": 60,
+          "cast": 30,
           "duration": null,
-          "dmg_reduction": null,
+          "dmg_reduction": 100,
           "note": null
         },
         {
           "name": "彩翼",
-          "cd": null,
+          "cd": 12,
           "cast": null,
-          "duration": null,
+          "duration": 7,
           "dmg_reduction": null,
           "note": null
         },
         {
           "name": "扶风",
-          "cd": null,
+          "cd": 14,
+          "cast": null,
+          "duration": 5,
+          "dmg_reduction": 25,
+          "note": null
+        },
+        {
+          "name": "清风",
+          "cd": 15,
           "cast": null,
           "duration": null,
+          "dmg_reduction": null,
+          "note": null
+        },
+        {
+          "name": "黯然",
+          "cd": 20,
+          "cast": 4,
+          "duration": 4,
           "dmg_reduction": null,
           "note": null
         }
@@ -220,6 +237,48 @@ export const DB = {
           "cast": 1.25,
           "duration": 4,
           "dmg_reduction": null,
+          "note": null
+        },
+        {
+          "name": "揽芳相携·无敌",
+          "cd": 80,
+          "cast": 7.2,
+          "duration": 5,
+          "dmg_reduction": 100,
+          "note": null
+        },
+        {
+          "name": "揽芳相携",
+          "cd": 45,
+          "cast": 5,
+          "duration": 5,
+          "dmg_reduction": 35,
+          "note": null
+        }
+      ],
+      "群侠": [
+        {
+          "name": "拳撼山岳",
+          "cd": 24,
+          "cast": 3,
+          "duration": null,
+          "dmg_reduction": 100,
+          "note": null
+        },
+        {
+          "name": "流月无痕",
+          "cd": 32,
+          "cast": 1.6,
+          "duration": null,
+          "dmg_reduction": 100,
+          "note": null
+        },
+        {
+          "name": "云影濯香",
+          "cd": 33,
+          "cast": 2.2,
+          "duration": null,
+          "dmg_reduction": 100,
           "note": null
         }
       ],
@@ -416,8 +475,8 @@ export const DB = {
       "name": "山盟",
       "source": "素心",
       "bucket": "职业技能",
-      "cd": null,
-      "duration": null,
+      "cd": 20,
+      "duration": 10,
       "cast": null,
       "dmg_reduction": null,
       "note": null
@@ -427,10 +486,10 @@ export const DB = {
       "name": "落霞",
       "source": "素心",
       "bucket": "职业技能",
-      "cd": null,
+      "cd": 20,
       "duration": null,
       "cast": null,
-      "dmg_reduction": null,
+      "dmg_reduction": 8,
       "note": null
     },
     {
@@ -438,7 +497,7 @@ export const DB = {
       "name": "初绽",
       "source": "素心",
       "bucket": "职业技能",
-      "cd": null,
+      "cd": 7,
       "duration": null,
       "cast": null,
       "dmg_reduction": null,
@@ -449,10 +508,10 @@ export const DB = {
       "name": "约定",
       "source": "素心",
       "bucket": "职业技能",
-      "cd": null,
-      "duration": null,
+      "cd": 35,
+      "duration": 5,
       "cast": null,
-      "dmg_reduction": null,
+      "dmg_reduction": 25,
       "note": null
     },
     {
@@ -460,10 +519,10 @@ export const DB = {
       "name": "风摇筝",
       "source": "素心",
       "bucket": "职业技能",
-      "cd": null,
+      "cd": 60,
       "duration": null,
-      "cast": null,
-      "dmg_reduction": null,
+      "cast": 30,
+      "dmg_reduction": 100,
       "note": null
     },
     {
@@ -471,8 +530,8 @@ export const DB = {
       "name": "彩翼",
       "source": "素心",
       "bucket": "职业技能",
-      "cd": null,
-      "duration": null,
+      "cd": 12,
+      "duration": 7,
       "cast": null,
       "dmg_reduction": null,
       "note": null
@@ -482,9 +541,31 @@ export const DB = {
       "name": "扶风",
       "source": "素心",
       "bucket": "职业技能",
-      "cd": null,
+      "cd": 14,
+      "duration": 5,
+      "cast": null,
+      "dmg_reduction": 25,
+      "note": null
+    },
+    {
+      "id": "素心__清风",
+      "name": "清风",
+      "source": "素心",
+      "bucket": "职业技能",
+      "cd": 15,
       "duration": null,
       "cast": null,
+      "dmg_reduction": null,
+      "note": null
+    },
+    {
+      "id": "素心__黯然",
+      "name": "黯然",
+      "source": "素心",
+      "bucket": "职业技能",
+      "cd": 20,
+      "duration": 4,
+      "cast": 4,
       "dmg_reduction": null,
       "note": null
     },
@@ -519,6 +600,61 @@ export const DB = {
       "duration": 4,
       "cast": 1.25,
       "dmg_reduction": null,
+      "note": null
+    },
+    {
+      "id": "百家__揽芳相携·无敌",
+      "name": "揽芳相携·无敌",
+      "source": "百家",
+      "bucket": "江湖技能",
+      "cd": 80,
+      "duration": 5,
+      "cast": 7.2,
+      "dmg_reduction": 100,
+      "note": null
+    },
+    {
+      "id": "百家__揽芳相携",
+      "name": "揽芳相携",
+      "source": "百家",
+      "bucket": "江湖技能",
+      "cd": 45,
+      "duration": 5,
+      "cast": 5,
+      "dmg_reduction": 35,
+      "note": null
+    },
+    {
+      "id": "群侠__拳撼山岳",
+      "name": "拳撼山岳",
+      "source": "群侠",
+      "bucket": "江湖技能",
+      "cd": 24,
+      "duration": null,
+      "cast": 3,
+      "dmg_reduction": 100,
+      "note": null
+    },
+    {
+      "id": "群侠__流月无痕",
+      "name": "流月无痕",
+      "source": "群侠",
+      "bucket": "江湖技能",
+      "cd": 32,
+      "duration": null,
+      "cast": 1.6,
+      "dmg_reduction": 100,
+      "note": null
+    },
+    {
+      "id": "群侠__云影濯香",
+      "name": "云影濯香",
+      "source": "群侠",
+      "bucket": "江湖技能",
+      "cd": 33,
+      "duration": null,
+      "cast": 2.2,
+      "dmg_reduction": 100,
       "note": null
     },
     {
