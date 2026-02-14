@@ -159,6 +159,11 @@ export function getKeysByNameAndSource(name, source) {
 }
 
 export function collectOrderedFromSelected() {
+  const validKeys = new Set(state.skillIndex.keys());
+
+  state.selectedKeys = new Set([...state.selectedKeys].filter((k) => validKeys.has(k)));
+  state.orderedKeys = state.orderedKeys.filter((k) => validKeys.has(k));
+
   const selected = [...state.selectedKeys];
   const existing = state.orderedKeys.filter((k) => state.selectedKeys.has(k));
   const existingSet = new Set(existing);

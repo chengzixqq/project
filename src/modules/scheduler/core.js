@@ -79,6 +79,14 @@ function resolveReplacement(baseSkill, t, ctx, relations, nameToSkill, nextReady
   }
   return baseSkill;
 }
+
+function getDynamicOriginalIndex(skill, order, startIdx) {
+  for (let off = 0; off < order.length; off += 1) {
+    const idx = (startIdx + off) % order.length;
+    if (order[idx]?.key === skill?.key) return idx;
+  }
+  return -1;
+}
 function isFeitian(skill) {
   return skill?.id === SKILL_ID.FEITIAN || (SKILL_NAME_ALIASES[SKILL_NAME.FEITIAN] || [SKILL_NAME.FEITIAN]).includes(skill?.name);
 }
@@ -266,7 +274,7 @@ export function generateSchedule(input) {
   let lastT = t;
   const events = [];
 
-  const doCast = (baseSkill) => {
+  const doCast = (baseSkill, options = {}) => {
     const skill = resolveReplacement(baseSkill, t, ctx, relations, nameToSkill, nextReady, prereqOptions);
     const cast = Math.max(0, Number(skill.cast ?? 0));
     const cdEff = Number(skill.cd ?? 0);
@@ -282,6 +290,7 @@ export function generateSchedule(input) {
     }
 
     const end = Math.min(t + cast, T);
+    const dynamicAdjusted = options.dynamicAdjusted === true;
     events.push({
       type: 'skill',
       key: skill.key,
@@ -292,6 +301,7 @@ export function generateSchedule(input) {
       cast,
       cd: cdEff,
       wood3Triggered,
+      dynamicAdjusted,
     });
 
     setReadyAt(skill, t + cdEff, nextReady, ctx);
@@ -340,9 +350,16 @@ export function generateSchedule(input) {
       }
 
       if (found >= 0) {
-        const skill = order[(idx + found) % order.length];
-        doCast(skill);
-        idx = (idx + found + 1) % order.length;
+        const orderStart = idx;
+        const originalIdx = (idx + found) % order.length;
+        const baseSkill = order[originalIdx];
+        const castSkill = resolveReplacement(baseSkill, t, ctx, relations, nameToSkill, nextReady, prereqOptions);
+        const nextBaseIdx = getDynamicOriginalIndex(castSkill, order, orderStart);
+
+        const dynamicAdjusted = found > 0 || castSkill.key !== baseSkill.key;
+
+        doCast(baseSkill, { dynamicAdjusted });
+        idx = ((nextBaseIdx >= 0 ? nextBaseIdx : originalIdx) + 1) % order.length;
       } else {
         let nextT = Infinity;
         for (const skill of order) {

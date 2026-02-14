@@ -209,7 +209,8 @@ export function renderResults(eventsAll, stats = null) {
       if (e.death === true) tr.classList.add('death', 'row-death');
     }
 
-    let actionText = `<b>${e.name}</b>${e.wood3Triggered ? ' <span class="badge blue">木周天触发</span>' : ''} <span class="muted">（起始秒：${Math.floor(e.start)}）</span>`;
+    const dynamicBadge = e.dynamicAdjusted ? ' <span class="badge dynamic">动态调整</span>' : '';
+    let actionText = `<b>${e.name}</b>${dynamicBadge}${e.wood3Triggered ? ' <span class="badge blue">木周天触发</span>' : ''} <span class="muted">（起始秒：${Math.floor(e.start)}）</span>`;
     if (e.type === 'skip') {
       actionText = `<b>跳过：${e.name}</b>`;
     } else if (e.type === 'vacuum') {

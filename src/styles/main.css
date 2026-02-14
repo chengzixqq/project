@@ -136,6 +136,7 @@
     @media (max-width: 900px) { .order-row { grid-template-columns: 1fr; } .order-row .miniBtns { justify-content: flex-start; } }
     .badge { display: inline-block; font-size: 11px; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--border); color: var(--muted); margin-left: 8px; }
     .badge.blue { border-color: rgba(122,162,255,0.6); color: #dce6fb; }
+    .badge.dynamic { border-color: rgba(255,209,102,0.72); color: #ffe9b0; background: rgba(255,209,102,0.12); }
     .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
     table { width: 100%; border-collapse: collapse; font-size: 13px; overflow: hidden; border-radius: 12px; }
     th, td { border-bottom: 1px solid var(--border); padding: 10px 10px; vertical-align: top; }
