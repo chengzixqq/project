@@ -153,7 +153,21 @@
       text-align: center;
       color: var(--muted);
       font-size: 12px;
-      padding: 8px 16px 20px;
+      padding: 8px 16px 8px;
+    }
+    .siteRecord {
+      text-align: center;
+      color: var(--muted);
+      font-size: 12px;
+      padding: 0 16px 20px;
+    }
+    .siteRecord a {
+      color: #8db8ff;
+      text-decoration: none;
+    }
+    .siteRecord a:hover,
+    .siteRecord a:focus-visible {
+      text-decoration: underline;
     }
     .kbd {
       display:inline-block; padding: 1px 6px; border: 1px solid var(--border);
